@@ -1,0 +1,15 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --c-primary: #e8503a;
+  --c-surface: #16121a;
+  --c-surface-raised: #201a26;
+  --c-accent: #4fd1a5;
+  --c-text: #e8e2ec;
+  --c-text-muted: #8a8296;
+  --c-border: #3a3440;
+}

@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "世界": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "当前时间节点": {
+          "default": "待初始化",
+          "type": "string"
+        },
+        "详细时间": {
+          "default": "待初始化",
+          "type": "string"
+        },
+        "当前区域": {
+          "default": "待初始化",
+          "type": "string"
+        },
+        "详细地点": {
+          "default": "待初始化",
+          "type": "string"
+        }
+      }
+    },
+    "玩家": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "身份来源": {
+          "default": "原创角色",
+          "type": "string",
+          "enum": [
+            "原创角色",
+            "原著角色"
+          ]
+        },
+        "角色名": {
+          "default": "待初始化",
+          "type": "string"
+        },
+        "是否武神躯": {
+          "default": false,
+          "type": "boolean"
+        },
+        "守护灵列表": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "description": "守护灵名"
+          },
+          "additionalProperties": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "来历": {
+                "default": "待初始化",
+                "type": "string"
+              },
+              "能力": {
+                "default": "待初始化",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "物品栏": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "description": "物品名"
+          },
+          "additionalProperties": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "描述": {
+                "default": "待初始化",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "特殊能力": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "description": "能力名"
+          },
+          "additionalProperties": {
+            "default": "待初始化",
+            "type": "string",
+            "description": "能力说明"
+          }
+        },
+        "当前状态": {
+          "default": "待初始化",
+          "type": "string"
+        }
+      }
+    },
+    "NPC": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "description": "NPC名"
+      },
+      "additionalProperties": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "是否武神躯": {
+            "default": false,
+            "type": "boolean"
+          },
+          "守护灵列表": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "description": "守护灵名"
+            },
+            "additionalProperties": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "来历": {
+                  "default": "待初始化",
+                  "type": "string"
+                },
+                "能力": {
+                  "default": "待初始化",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "当前状态": {
+            "default": "待初始化",
+            "type": "string"
+          },
+          "物品栏": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "description": "物品名"
+            },
+            "additionalProperties": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "描述": {
+                  "default": "待初始化",
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "特殊能力": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "description": "能力名"
+            },
+            "additionalProperties": {
+              "default": "待初始化",
+              "type": "string",
+              "description": "能力说明"
+            }
+          },
+          "好感度": {
+            "default": 0,
+            "type": "number"
+          },
+          "与主角关系": {
+            "default": "待初始化",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
