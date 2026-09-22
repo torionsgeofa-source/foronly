@@ -23,7 +23,11 @@
     "@types/showdown": "^2.0.6",
     "@types/toastr": "^2.1.44",
     "@types/webpack": "^5.28.5",
+<<<<<<< HEAD
     "@typescript-eslint/parser": "^8.70.1",
+=======
+    "@typescript-eslint/parser": "^8.70.0",
+>>>>>>> f7341ed104a587f6bd06b2fd5a549403d6f0ad5c
     "autoprefixer": "^10.6.1",
     "chokidar": "^5.0.0",
     "css-loader": "^7.1.5",
