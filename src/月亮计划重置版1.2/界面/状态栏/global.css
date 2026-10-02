@@ -1,0 +1,32 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --b-bg: #100d10;
+  --b-surface: #1b161b;
+  --b-surface-2: #241d24;
+  --b-border: #3b303b;
+  --b-text: #e8e0e4;
+  --b-muted: #9a8f98;
+  --b-accent: #c8452f;
+  --b-accent-2: #d9a441;
+  --b-ally: #4fa3d1;
+  --b-enemy: #c8452f;
+  --b-player: #6fce8f;
+  --b-hp: #c8452f;
+  --b-sp: #6f9fd1;
+  --b-chaos: #d9a441;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--b-text);
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#app {
+  width: 100%;
+}
