@@ -1,0 +1,187 @@
+﻿import type { Schema as MvuSchema } from '../../schema';
+import type { 技能, 战斗单位, 状态效果 } from './engine/types';
+import { 从模板生成单位, 技能记录转技能, 查找模板 } from './engine/units';
+import { 存活 } from './engine/battle';
+import { 战力评级 } from './engine/level';
+
+type 罪孽对象 = { 暴怒: number; 色欲: number; 怠惰: number; 暴食: number; 忧郁: number; 傲慢: number; 嫉妒: number };
+type 物理抗性对象 = { 斩击: number; 突刺: number; 打击: number };
+
+function 罪孽写回(来源: Record<string, number>): 罪孽对象 {
+  return {
+    暴怒: 来源.暴怒 ?? 0,
+    色欲: 来源.色欲 ?? 0,
+    怠惰: 来源.怠惰 ?? 0,
+    暴食: 来源.暴食 ?? 0,
+    忧郁: 来源.忧郁 ?? 0,
+    傲慢: 来源.傲慢 ?? 0,
+    嫉妒: 来源.嫉妒 ?? 0,
+  };
+}
+
+function 物理抗性写回(来源: Record<string, number>): 物理抗性对象 {
+  return {
+    斩击: 来源.斩击 ?? 1,
+    突刺: 来源.突刺 ?? 1,
+    打击: 来源.打击 ?? 1,
+  };
+}
+
+function 复制状态(状态: Record<string, 状态效果>): Record<string, 状态效果> {
+  const 结果: Record<string, 状态效果> = {};
+  for (const [名称, 值] of Object.entries(状态)) {
+    if (值.强度 > 0 || 值.层数 > 0) 结果[名称] = { 强度: 值.强度, 层数: 值.层数 };
+  }
+  return 结果;
+}
+
+function 技能写回(技能表: Record<string, 技能>) {
+  return Object.fromEntries(
+    Object.entries(技能表).map(([名称, 技能]) => [
+      名称,
+      {
+        罪孽: 技能.罪孽,
+        攻击类型: 技能.攻击类型,
+        基础威力: 技能.基础威力,
+        硬币威力: [...技能.硬币威力],
+        攻击等级修正: 技能.攻击等级修正,
+        攻击容量: 技能.攻击容量,
+        效果: 技能.效果,
+      },
+    ]),
+  );
+}
+
+export function 玩家单位(data: MvuSchema): 战斗单位 {
+  const 玩家 = data.玩家状态;
+  const 单位: 战斗单位 = {
+    名称: 玩家.基础信息.名称 || '玩家',
+    阵营: '玩家',
+    身份: 玩家.基础信息.身份,
+    等级: 玩家.基础信息.等级,
+    生命值: 玩家.生命体征.生命值.数值,
+    生命上限: 玩家.生命体征.生命值.上限,
+    理智值: 玩家.生命体征.理智值.数值,
+    混乱值: 玩家.生命体征.混乱.数值,
+    混乱阈值: 玩家.生命体征.混乱.阈值,
+    攻击等级: 玩家.战斗属性.攻击等级,
+    防御等级: 玩家.战斗属性.防御等级,
+    速度: 玩家.战斗属性.速度,
+    罪孽抗性: { ...玩家.罪孽抗性 },
+    物理抗性: { ...玩家.物理抗性 },
+    罪孽资源: { ...玩家.罪孽资源 },
+    状态效果: 复制状态(玩家.状态效果),
+    技能: 技能记录转技能(玩家.技能),
+    是否玩家: true,
+    已选技能: null,
+    已选目标: null,
+    已行动: false,
+  };
+  if (Object.keys(单位.技能).length === 0) {
+    单位.技能 = 从模板生成单位(查找模板(单位.身份), 单位.名称, '玩家').技能;
+  }
+  return 单位;
+}
+
+export function 变量单位(名称: string, 记录: MvuSchema['战斗']['单位'][string]): 战斗单位 {
+  const 单位: 战斗单位 = {
+    名称,
+    阵营: (记录.阵营 === '玩家' || 记录.阵营 === '盟友' ? 记录.阵营 : '敌人') as 战斗单位['阵营'],
+    身份: 记录.身份,
+    等级: 记录.等级,
+    生命值: 记录.生命值,
+    生命上限: 记录.生命上限,
+    理智值: 记录.理智值,
+    混乱值: 记录.混乱值,
+    混乱阈值: 记录.混乱阈值,
+    攻击等级: 记录.攻击等级,
+    防御等级: 记录.防御等级,
+    速度: 记录.速度,
+    罪孽抗性: { ...记录.罪孽抗性 },
+    物理抗性: { ...记录.物理抗性 },
+    罪孽资源: { ...记录.罪孽资源 },
+    状态效果: 复制状态(记录.状态效果),
+    技能: 技能记录转技能(记录.技能),
+    是否玩家: false,
+    已选技能: null,
+    已选目标: null,
+    已行动: false,
+  };
+  if (Object.keys(单位.技能).length === 0) {
+    const 模板 = 查找模板(单位.身份);
+    const 补全 = 从模板生成单位(模板, 名称, 单位.阵营);
+    单位.技能 = 补全.技能;
+  }
+  return 单位;
+}
+
+export function 构建全部单位(data: MvuSchema): 战斗单位[] {
+  const 单位: 战斗单位[] = [玩家单位(data)];
+  for (const [名称, 记录] of Object.entries(data.战斗.单位)) {
+    单位.push(变量单位(名称, 记录));
+  }
+  return 单位;
+}
+
+export function 写回玩家(data: MvuSchema, 单位: 战斗单位): void {
+  const 玩家 = data.玩家状态;
+  玩家.生命体征.生命值.数值 = Math.max(0, Math.round(单位.生命值));
+  玩家.生命体征.理智值.数值 = Math.max(-45, Math.min(45, Math.round(单位.理智值)));
+  玩家.生命体征.混乱.数值 = Math.max(0, Math.round(单位.混乱值));
+  玩家.生命体征.混乱.阈值 = Math.max(1, Math.round(单位.混乱阈值));
+  玩家.战斗属性.攻击等级 = 单位.攻击等级;
+  玩家.战斗属性.防御等级 = 单位.防御等级;
+  玩家.战斗属性.速度 = 单位.速度;
+  玩家.罪孽资源 = 罪孽写回(单位.罪孽资源);
+  玩家.状态效果 = 复制状态(单位.状态效果);
+}
+
+export function 写回单位(data: MvuSchema, 单位: 战斗单位): void {
+  data.战斗.单位[单位.名称] = {
+    阵营: 单位.阵营,
+    身份: 单位.身份,
+    _战力评级: 战力评级(Math.round(单位.等级)),
+    等级: Math.round(单位.等级),
+    生命值: Math.max(0, Math.round(单位.生命值)),
+    生命上限: Math.max(1, Math.round(单位.生命上限)),
+    理智值: Math.max(-45, Math.min(45, Math.round(单位.理智值))),
+    混乱值: Math.max(0, Math.round(单位.混乱值)),
+    混乱阈值: Math.max(1, Math.round(单位.混乱阈值)),
+    攻击等级: 单位.攻击等级,
+    防御等级: 单位.防御等级,
+    速度: 单位.速度,
+    罪孽抗性: 罪孽写回(单位.罪孽抗性),
+    物理抗性: 物理抗性写回(单位.物理抗性),
+    罪孽资源: 罪孽写回(单位.罪孽资源),
+    状态效果: 复制状态(单位.状态效果),
+    技能: 技能写回(单位.技能) as MvuSchema['战斗']['单位'][string]['技能'],
+  };
+}
+
+export function 写回战斗(data: MvuSchema, 单位: 战斗单位[], 回合: number, 速度顺序: string[], 当前行动者: string, 日志: string[], 进行中: boolean): void {
+  for (const u of 单位) {
+    if (u.是否玩家) 写回玩家(data, u);
+    else 写回单位(data, u);
+  }
+  data.战斗.回合 = 回合;
+  data.战斗.速度顺序 = [...速度顺序];
+  data.战斗.当前行动者 = 当前行动者;
+  data.战斗.日志 = 日志.slice(-40);
+  data.战斗.进行中 = 进行中;
+}
+
+export function 生成回合摘要(回合: number, 单位: 战斗单位[], 日志: string[], 结束: string | null): string {
+  const 存活单位 = 单位.filter(存活);
+  const 玩家 = 单位.find(u => u.是否玩家);
+  const 状态行 = 存活单位
+    .map(u => `${u.名称}: HP ${Math.round(u.生命值)}/${u.生命上限} SP ${Math.round(u.理智值)}`)
+    .join(' | ');
+  const 结尾 = 结束 ? `\n战斗结果: ${结束}` : '';
+  const 玩家行 = 玩家 ? `\n玩家: ${玩家.名称} HP ${Math.round(玩家.生命值)}/${玩家.生命上限} SP ${Math.round(玩家.理智值)}` : '';
+  return [
+    `<战斗结算 第${回合}回合>`,
+    日志.slice(-12).map(行 => `- ${行}`).join('\n'),
+    `存活: ${状态行 || '无'}${玩家行}${结尾}`,
+    '</战斗结算>',
+  ].join('\n');
+}
