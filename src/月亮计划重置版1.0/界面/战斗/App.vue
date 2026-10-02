@@ -6,6 +6,9 @@
       <span v-if="当前行动单位" class="current">当前行动：{{ 当前行动单位.名称 }}</span>
       <span v-else class="current muted">战斗结束</span>
       <button class="head-btn" :class="{ off: 静音 }" @click="切换静音">{{ 静音 ? '音效关' : '音效开' }}</button>
+      <button class="head-btn" :disabled="!可回滚" @click="回滚一回合">回滚一回合</button>
+      <button class="head-btn" :disabled="!可交接" @click="结算战斗">结算战斗</button>
+      <button class="head-btn" :disabled="!可交接" @click="结束战斗">结束战斗</button>
       <button class="head-btn" @click="重开">重开</button>
     </header>
 
@@ -153,6 +156,11 @@ const 显示结果 = ref(false);
 const 回合数 = ref(1);
 const 经验结算 = ref<经验结算信息 | null>(null);
 const 震动中 = ref(false);
+const 快照栈 = ref<战斗状态[]>([]);
+const 交接状态 = ref<'结算' | '脱战' | null>(null);
+const 已交接 = computed(() => 交接状态.value !== null);
+const 可回滚 = computed(() => !已交接.value && 快照栈.value.length > 0 && (模式.value === '选技能' || 模式.value === '选目标'));
+const 可交接 = computed(() => !!战斗.value && !已交接.value && 战斗.value.结束 === null && 模式.value !== '结算');
 
 let 拼点完成: (() => void) | null = null;
 let 震动定时: ReturnType<typeof setTimeout> | null = null;
@@ -237,19 +245,9 @@ async function 处理命中(命中: 命中结果): Promise<void> {
   if (命中.目标混乱 || 命中.追加.length > 0) 播放音效('状态附加');
 }
 
-async function 发送回合摘要(): Promise<void> {
-  const b = 战斗.value;
-  if (!b) return;
-  const 文本 = 生成回合摘要(Math.max(1, b.回合 - 1), b.单位, 汇总日志.value, b.结束);
-  try {
-    await createChatMessages([{ role: 'user', message: 文本 }], { refresh: 'none' });
-  } catch (错误) {
-    console.error('[战斗面板] 发送回合摘要失败', 错误);
-  }
-}
-
 /** 玩家需要选择时进入等待并返回 false, 否则返回 true */
 function 等待玩家选择(): boolean {
+  if (已交接.value) return true;
   const 玩家 = 玩家单位.value;
   if (玩家 && 存活(玩家) && !玩家.已行动) {
     已选技能.value = null;
@@ -289,7 +287,6 @@ async function 自动推进(): Promise<void> {
       if (推进行动(b)) {
         结束回合(b);
         同步日志();
-        await 发送回合摘要();
         if (b.结束) break;
         if (!等待玩家选择()) return;
       }
@@ -310,7 +307,6 @@ async function 自动推进(): Promise<void> {
     if (推进行动(b)) {
       结束回合(b);
       同步日志();
-      await 发送回合摘要();
       if (b.结束) break;
       if (!等待玩家选择()) return;
     }
@@ -355,6 +351,7 @@ function 切换目标(名称: string): void {
 function 确认目标(): void {
   const 玩家 = 当前行动单位.value;
   if (!玩家 || 已选目标列表.value.length === 0) return;
+  保存快照();
   玩家.已选技能 = 已选技能.value;
   玩家.已选目标 = [...已选目标列表.value];
   // 玩家确认后重算罪孽共鸣, 使其计入我方本回合所选技能
@@ -382,6 +379,67 @@ function 单位点击(单位: 战斗单位): void {
   切换目标(单位.名称);
 }
 
+function 保存快照(): void {
+  const b = 战斗.value;
+  if (!b) return;
+  快照栈.value.push(JSON.parse(JSON.stringify(b)) as 战斗状态);
+  if (快照栈.value.length > 30) 快照栈.value.shift();
+}
+
+/** 回滚到上一次玩家操作之前 */
+function 回滚一回合(): void {
+  const 上次 = 快照栈.value.pop();
+  if (!上次) return;
+  战斗.value = 上次;
+  当前拼点.value = null;
+  最近命中列表.value = [];
+  已选技能.value = null;
+  已选目标列表.value = [];
+  同步日志();
+  写回();
+  模式.value = '选技能';
+  console.info('[战斗面板] 回滚一回合');
+}
+
+async function 发送交接文本(类型: '结算' | '脱战'): Promise<void> {
+  const b = 战斗.value;
+  if (!b) return;
+  const 摘要 = 生成回合摘要(b.回合, b.单位, 汇总日志.value, null);
+  const 头部 = 类型 === '结算' ? '【战斗结算·交由你叙述】' : '【脱战】';
+  const 说明 =
+    类型 === '结算'
+      ? '本场战斗已由系统在本地完成数值结算。请据此续写剧情，不要重新计算数值，也不要在正文中罗列数值。'
+      : '本回合以“脱战”作为描写的结尾：我方撤离或拉开距离，敌方不再继续追击。数值已由系统在本地结算，请据此续写。';
+  const 文本 = `${头部}\n${摘要}\n\n说明：${说明}`;
+  try {
+    await createChatMessages([{ role: 'user', message: 文本 }], { refresh: 'none' });
+  } catch (错误) {
+    console.error('[战斗面板] 发送战斗交接失败', 错误);
+  }
+}
+
+/** 结算战斗: 停止交互, 把战斗过程与当前结果交给 AI 叙述 */
+async function 结算战斗(): Promise<void> {
+  if (!可交接.value) return;
+  交接状态.value = '结算';
+  await 发送交接文本('结算');
+  const b = 战斗.value;
+  if (b) 写回战斗(data, b.单位, b.回合, b.速度顺序, b.当前行动者, 汇总日志.value, false);
+  模式.value = '结束';
+  console.info('[战斗面板] 结算战斗（交接给 AI）');
+}
+
+/** 结束战斗: 脱战, 要求 AI 以脱战作为本轮描写结尾 */
+async function 结束战斗(): Promise<void> {
+  if (!可交接.value) return;
+  交接状态.value = '脱战';
+  await 发送交接文本('脱战');
+  const b = 战斗.value;
+  if (b) 写回战斗(data, b.单位, b.回合, b.速度顺序, b.当前行动者, 汇总日志.value, false);
+  模式.value = '结束';
+  console.info('[战斗面板] 结束战斗（脱战）');
+}
+
 function 重开(): void {
   显示结果.value = false;
   初始化();
@@ -399,6 +457,8 @@ function 初始化(): void {
   当前拼点.value = null;
   最近命中列表.value = [];
   经验结算.value = null;
+  快照栈.value = [];
+  交接状态.value = null;
   写回();
   console.info('[战斗面板] 战斗开始', b.速度顺序);
   if (等待玩家选择()) {
