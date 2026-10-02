@@ -1,6 +1,12 @@
 <template>
   <div class="opening-form">
-    <div class="card">
+    <div v-if="已提交" class="card done-card">
+      <div class="done-icon">✦</div>
+      <h1 class="card-title">档案已建立</h1>
+      <p class="card-sub">角色初始化完成，正在由 AI 铺开你的开场场景……</p>
+    </div>
+
+    <div v-else class="card">
       <header class="card-head">
         <h1 class="card-title">月亮计划 · 角色初始化</h1>
         <p class="card-sub">填写你的角色档案，完成后将由 AI 为你铺开开场场景。</p>
@@ -249,6 +255,34 @@ async function 提交(): Promise<void> {
   margin: 6px 0 0;
   font-size: 12px;
   color: var(--b-muted);
+}
+
+.done-card {
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 40px 24px;
+}
+
+.done-icon {
+  font-size: 34px;
+  color: var(--b-accent-2);
+  text-shadow: 0 0 18px rgba(217, 164, 65, 0.6);
+  animation: done-pop 0.6s ease;
+}
+
+@keyframes done-pop {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .guide {
