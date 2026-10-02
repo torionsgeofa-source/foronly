@@ -2,11 +2,15 @@ export type 罪孽名 = '暴怒' | '色欲' | '怠惰' | '暴食' | '忧郁' | '
 export type 攻击类型名 = '斩击' | '突刺' | '打击';
 export type 硬币类型 = '普通' | '不可摧毁' | '截除' | '无我';
 export type 阵营名 = '玩家' | '盟友' | '敌人';
-export type 技能类别 = '攻击' | '守备';
+export type 技能类别 = '攻击' | '守备' | 'EGO';
+export type 守备类型名 = '闪避' | '防御' | '强化防御' | '反击' | '强化反击';
 
 export const 罪孽列表: 罪孽名[] = ['暴怒', '色欲', '怠惰', '暴食', '忧郁', '傲慢', '嫉妒'];
 export const 攻击类型列表: 攻击类型名[] = ['斩击', '突刺', '打击'];
 export const 硬币类型列表: 硬币类型[] = ['普通', '不可摧毁', '截除', '无我'];
+export const 守备类型列表: 守备类型名[] = ['闪避', '防御', '强化防御', '反击', '强化反击'];
+/** 可参与拼点、胜利后不造成伤害而是规避/格挡的守备类型 */
+export const 可拼点守备列表: 守备类型名[] = ['闪避', '防御', '强化防御'];
 
 export const 罪孽颜色: Record<罪孽名, string> = {
   暴怒: '#e04b3a',
@@ -35,6 +39,12 @@ export interface 硬币 {
   已破碎: boolean;
 }
 
+export type 技能效果 =
+  | { type: '施加状态'; 状态: string; 强度?: number; 层数?: number }
+  | { type: '震颤引爆' }
+  | { type: '消耗资源强化'; 罪孽: 罪孽名; 耗费: number; 威力: number }
+  | { type: '条件增伤'; 条件: string; 数值: number };
+
 export interface 技能 {
   名称: string;
   罪孽: 罪孽名;
@@ -46,7 +56,22 @@ export interface 技能 {
   攻击容量: number;
   效果: string;
   类别: 技能类别;
+  /** 仅守备技能拥有; 决定拼点使用防御/攻击等级以及胜利后的结算方式 */
+  守备类型?: 守备类型名;
+  /** E.G.O 资源消耗 (未填写时 EGO 默认 3) */
+  资源消耗?: number;
+  /** E.G.O 理智消耗 (未填写时默认 10) */
+  SP消耗?: number;
+  /** 结构化技能效果; 有值时优先于字符串 效果 */
+  effects?: 技能效果[];
 }
+
+export interface 速度区间 {
+  最小: number;
+  最大: number;
+}
+
+export type 恐慌状态 = '无' | '待生效' | '生效中';
 
 export interface 状态效果 {
   强度: number;
@@ -66,6 +91,10 @@ export interface 战斗单位 {
   攻击等级: number;
   防御等级: number;
   速度: number;
+  /** 每回合在区间内掷速度; 省略时使用固定速度 */
+  速度区间?: 速度区间;
+  /** 本回合实际掷出的速度 (未掷时等于固定速度) */
+  本回合速度: number;
   罪孽抗性: Record<string, number>;
   物理抗性: Record<string, number>;
   罪孽资源: Record<string, number>;
@@ -73,9 +102,12 @@ export interface 战斗单位 {
   技能: Record<string, 技能>;
   是否玩家: boolean;
   已选技能: string | null;
-  已选目标: string | null;
+  /** 本次行动选中的目标 (支持攻击容量多目标) */
+  已选目标: string[];
   /** 本回合是否已经行动过 (含作为拼点防守方被消耗) */
   已行动: boolean;
+  /** 恐慌状态机: 待生效 -> 生效中 -> 无 */
+  恐慌状态: 恐慌状态;
 }
 
 export interface 拼点硬币记录 {
@@ -112,7 +144,16 @@ export interface 拼点结果 {
   右侧攻击等级加成: number;
   左侧拼点威力加成: number;
   右侧拼点威力加成: number;
+  左侧SP变化: number;
+  右侧SP变化: number;
 }
+
+export interface SP变化记录 {
+  名称: string;
+  变化: number;
+}
+
+export type 守备结算 = '闪避' | '防御' | '强化防御' | '反击' | '强化反击';
 
 export interface 追加伤害记录 {
   名称: string;
@@ -141,6 +182,14 @@ export interface 命中结果 {
   文本: string;
   目标死亡: boolean;
   目标混乱: boolean;
+  /** 若本次为守备结算, 标明守备类型 */
+  守备结果?: 守备结算;
+  /** 本次结算造成的 SP 变化 (用于 UI 与日志) */
+  SP变化?: SP变化记录[];
+  /** 本次是否为跳过行动 (混乱/恐慌/架起守备) */
+  跳过行动?: boolean;
+  /** 本技能是否因 SP ≤ -45 而侵蚀 (随机攻击任意单位) */
+  侵蚀?: boolean;
 }
 
 export interface 战斗状态 {

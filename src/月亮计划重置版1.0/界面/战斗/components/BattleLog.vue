@@ -11,8 +11,10 @@ const 容器 = ref<HTMLElement | null>(null);
 
 function 行类(行: string): string {
   if (/倒下|死亡|失败|解体/.test(行)) return 'death';
-  if (/暴击|拼点|压制|击碎/.test(行)) return 'clash';
-  if (/烧伤|流血|破裂|沉沦|震颤|混乱|状态/.test(行)) return 'status';
+  if (/侵蚀/.test(行)) return 'corrosion';
+  if (/罪孽共鸣/.test(行)) return 'resonance';
+  if (/暴击|拼点|压制|击碎|闪避|防御|反击|招架/.test(行)) return 'clash';
+  if (/烧伤|流血|破裂|沉沦|震颤|混乱|状态|恐慌|士气低落/.test(行)) return 'status';
   if (/第\s*\d+\s*回合/.test(行)) return 'round';
   return '';
 }
@@ -94,5 +96,18 @@ watch(
   border-left-color: var(--b-ally);
   color: #9fc6e0;
   font-weight: 700;
+}
+
+.log-line.corrosion {
+  border-left-color: #a05de0;
+  color: #d0a0f0;
+  font-weight: 700;
+}
+
+.log-line.resonance {
+  border-left-color: var(--b-accent-2);
+  color: #f0d48a;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(217, 164, 65, 0.5);
 }
 </style>

@@ -36,9 +36,18 @@
     <div class="unit-stats">
       <span>攻 {{ 有效攻击 }}</span>
       <span>防 {{ 有效防御 }}</span>
-      <span>速 {{ 有效速度值 }}</span>
+      <span>速 {{ 有效速度值 }}<template v-if="unit.速度区间">（{{ unit.速度区间.最小 }}~{{ unit.速度区间.最大 }}）</template></span>
       <span v-if="存活中 && 混乱" class="staggered">混乱!</span>
+      <span v-if="存活中 && 恐慌" class="panicked">恐慌</span>
+      <span v-else-if="存活中 && 士气低落" class="low-morale">士气低落</span>
       <span v-if="!存活中" class="dead-tag">已倒下</span>
+    </div>
+
+    <div class="unit-resources">
+      <span v-for="罪孽 in 罪孽列表" :key="罪孽" class="res-chip" :title="`${罪孽}资源`">
+        <span class="res-dot" :style="{ background: 罪孽颜色[罪孽] }" />
+        <span class="res-val">{{ unit.罪孽资源[罪孽] ?? 0 }}</span>
+      </span>
     </div>
 
     <StatusIcons :statuses="unit.状态效果" />
@@ -47,6 +56,7 @@
 
 <script setup lang="ts">
 import type { 战斗单位 } from '../engine/types';
+import { 罪孽列表, 罪孽颜色 } from '../engine/types';
 import { 聚合加成, 是否混乱 } from '../engine/status';
 import { 存活, 有效速度 } from '../engine/battle';
 import { 战力评级 } from '../engine/level';
@@ -63,6 +73,8 @@ const emit = defineEmits<{ (e: 'click'): void }>();
 
 const 存活中 = computed(() => 存活(props.unit));
 const 混乱 = computed(() => 是否混乱(props.unit));
+const 恐慌 = computed(() => props.unit.恐慌状态 !== '无');
+const 士气低落 = computed(() => (props.unit.状态效果['士气低落']?.层数 ?? 0) > 0);
 
 const hp百分比 = computed(() => `${Math.max(0, Math.min(100, (props.unit.生命值 / Math.max(1, props.unit.生命上限)) * 100))}%`);
 const sp百分比 = computed(() => `${Math.max(0, Math.min(100, ((props.unit.理智值 + 45) / 90) * 100))}%`);
@@ -271,7 +283,46 @@ const 评级类 = computed(() => {
   font-weight: 700;
 }
 
+.panicked {
+  color: #f0a090;
+  font-weight: 700;
+}
+
+.low-morale {
+  color: #b6a9b3;
+}
+
 .dead-tag {
   color: var(--b-enemy);
+}
+
+.unit-resources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.res-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 3px;
+  border: 1px solid var(--b-border);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.res-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+}
+
+.res-val {
+  color: var(--b-text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 </style>

@@ -4,20 +4,28 @@
       v-for="技能 in 技能列表"
       :key="技能.名称"
       class="skill-chip"
-      :class="{ selected: 技能.名称 === selected, defense: 技能.类别 === '守备' }"
-      :disabled="disabled"
+      :class="{ selected: 技能.名称 === selected, defense: 技能.类别 === '守备', ego: 技能.类别 === 'EGO', unusable: !可用(技能) }"
+      :disabled="disabled || !可用(技能)"
       :style="{ borderColor: 罪孽色(技能.罪孽) }"
+      :title="技能.类别 === 'EGO' && !可用(技能) ? '罪孽资源不足或 SP ≤ -45，无法发动 E.G.O' : ''"
       @click="emit('select', 技能.名称)"
     >
-      <span class="skill-name">{{ 技能.名称 }}</span>
+      <span class="skill-name">
+        {{ 技能.名称 }}
+        <span v-if="技能.类别 === 'EGO'" class="ego-tag">E.G.O</span>
+      </span>
       <span class="skill-meta">
         <span class="sin" :style="{ background: 罪孽色(技能.罪孽) }" />
         {{ 技能.罪孽 }}
         <span class="meta-sep">·</span>
         <AttackIcon :类型="技能.攻击类型" class="meta-atk" />
         {{ 技能.攻击类型 }}
-        <span v-if="技能.类别 === '守备'" class="defense-tag">守备</span>
+        <span v-if="技能.守备类型" class="defense-tag" :class="{ counter: 技能.守备类型 === '反击' || 技能.守备类型 === '强化反击' }">
+          {{ 技能.守备类型 }}
+        </span>
+        <span v-else-if="技能.类别 === '守备'" class="defense-tag">守备</span>
       </span>
+      <span v-if="技能.类别 === 'EGO'" class="ego-cost">消耗 资源{{ 资源消耗(技能) }} · SP{{ 理智消耗(技能) }}</span>
       <span class="skill-power">
         <span class="base-power">基础 {{ 技能.基础威力 }}</span>
         <span class="meta-sep">·</span>
@@ -26,7 +34,7 @@
             {{ 威力 }}
           </span>
         </span>
-        <template v-if="技能.攻击容量 > 1"><span class="meta-sep">·</span>容量 {{ 技能.攻击容量 }}</template>
+        <template v-if="技能.攻击容量 >= 1"><span class="meta-sep">·</span><span class="capacity-tag">容量 {{ 技能.攻击容量 }}</span></template>
       </span>
       <span v-if="技能.效果" class="skill-effect">{{ 技能.效果 }}</span>
     </button>
@@ -43,11 +51,29 @@ const props = defineProps<{
   skills: Record<string, 技能>;
   selected: string | null;
   disabled?: boolean;
+  资源?: Record<string, number>;
+  理智值?: number;
 }>();
 
 const emit = defineEmits<{ (e: 'select', 技能名: string): void }>();
 
 const 技能列表 = computed(() => Object.values(props.skills));
+
+function 资源消耗(技能: 技能): number {
+  return 技能.类别 === 'EGO' ? (技能.资源消耗 ?? 3) : 0;
+}
+
+function 理智消耗(技能: 技能): number {
+  return 技能.类别 === 'EGO' ? (技能.SP消耗 ?? 10) : 0;
+}
+
+/** E.G.O 需对应罪孽资源足够且 SP > -45 才可选 */
+function 可用(技能: 技能): boolean {
+  if (技能.类别 !== 'EGO') return true;
+  const 足够 = (props.资源?.[技能.罪孽] ?? 0) >= 资源消耗(技能);
+  const 清醒 = (props.理智值 ?? 0) > -45;
+  return 足够 && 清醒;
+}
 
 function 罪孽色(罪孽: string): string {
   return 罪孽颜色[罪孽 as 罪孽名] ?? '#888';
@@ -112,9 +138,37 @@ function 硬币类(类型: 硬币类型 | undefined): string {
   border-style: dashed;
 }
 
+.skill-chip.ego {
+  border-color: #d9a441;
+  background: linear-gradient(150deg, rgba(61, 44, 18, 0.9), rgba(16, 13, 16, 0.9));
+}
+
+.skill-chip.unusable {
+  opacity: 0.4;
+  filter: grayscale(0.6);
+}
+
 .skill-name {
   font-weight: 700;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ego-tag {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #1b1207;
+  background: linear-gradient(90deg, #d9a441, #f0d48a);
+}
+
+.ego-cost {
+  font-size: 10px;
+  color: var(--b-accent-2);
 }
 
 .skill-meta {
@@ -145,6 +199,15 @@ function 硬币类(类型: 硬币类型 | undefined): string {
   border-radius: 3px;
   border: 1px dashed var(--b-muted);
   color: var(--b-muted);
+}
+
+.defense-tag.counter {
+  border-color: var(--b-accent);
+  color: var(--b-accent);
+}
+
+.capacity-tag {
+  color: var(--b-accent-2);
 }
 
 .skill-power {

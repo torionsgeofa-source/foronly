@@ -130,6 +130,20 @@
             "速度": {
               "default": 1,
               "type": "number"
+            },
+            "速度区间": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "最小": {
+                  "default": 1,
+                  "type": "number"
+                },
+                "最大": {
+                  "default": 1,
+                  "type": "number"
+                }
+              }
             }
           }
         },
@@ -282,6 +296,22 @@
               "效果": {
                 "default": "",
                 "type": "string"
+              },
+              "类别": {
+                "default": "攻击",
+                "type": "string"
+              },
+              "守备类型": {
+                "default": "",
+                "type": "string"
+              },
+              "资源消耗": {
+                "default": 0,
+                "type": "number"
+              },
+              "SP消耗": {
+                "default": 0,
+                "type": "number"
               }
             }
           }
@@ -430,6 +460,20 @@
               "速度": {
                 "default": 1,
                 "type": "number"
+              },
+              "速度区间": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "最小": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "最大": {
+                    "default": 1,
+                    "type": "number"
+                  }
+                }
               },
               "罪孽抗性": {
                 "default": {},
@@ -580,6 +624,22 @@
                     "效果": {
                       "default": "",
                       "type": "string"
+                    },
+                    "类别": {
+                      "default": "攻击",
+                      "type": "string"
+                    },
+                    "守备类型": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "资源消耗": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "SP消耗": {
+                      "default": 0,
+                      "type": "number"
                     }
                   }
                 }

@@ -79,6 +79,10 @@ export const Schema = z.object({
       攻击等级: z.coerce.number().transform(v => Math.max(1, v)).prefault(1),
       防御等级: z.coerce.number().transform(v => Math.max(1, v)).prefault(1),
       速度: z.coerce.number().transform(v => Math.max(1, v)).prefault(1),
+      速度区间: z.object({
+        最小: z.coerce.number().prefault(1),
+        最大: z.coerce.number().prefault(1),
+      }).prefault({}),
     }).prefault({}),
 
     罪孽抗性: z.object({
@@ -125,6 +129,10 @@ export const Schema = z.object({
         攻击等级修正: z.coerce.number().prefault(0),
         攻击容量: z.coerce.number().prefault(1),
         效果: z.string().prefault(''),
+        类别: z.string().prefault('攻击'),
+        守备类型: z.string().prefault(''),
+        资源消耗: z.coerce.number().prefault(0),
+        SP消耗: z.coerce.number().prefault(0),
       }).prefault({})
     ).prefault({}),
 
@@ -170,6 +178,10 @@ export const Schema = z.object({
         攻击等级: z.coerce.number().prefault(1),
         防御等级: z.coerce.number().prefault(1),
         速度: z.coerce.number().prefault(1),
+        速度区间: z.object({
+          最小: z.coerce.number().prefault(1),
+          最大: z.coerce.number().prefault(1),
+        }).prefault({}),
         罪孽抗性: z.object({
           暴怒: z.coerce.number().prefault(1),
           色欲: z.coerce.number().prefault(1),
@@ -210,6 +222,10 @@ export const Schema = z.object({
             攻击等级修正: z.coerce.number().prefault(0),
             攻击容量: z.coerce.number().prefault(1),
             效果: z.string().prefault(''),
+            类别: z.string().prefault('攻击'),
+            守备类型: z.string().prefault(''),
+            资源消耗: z.coerce.number().prefault(0),
+            SP消耗: z.coerce.number().prefault(0),
           }).prefault({})
         ).prefault({}),
       }).transform(data => {

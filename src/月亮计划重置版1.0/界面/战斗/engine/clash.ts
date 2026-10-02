@@ -1,6 +1,7 @@
 import type { 技能, 硬币, 战斗单位, 拼点结果, 拼点回合记录, 拼点硬币记录 } from './types';
+import { 可拼点守备列表 } from './types';
 import { 正面率, 掷硬币, 默认随机源, type 随机源 } from './rng';
-import { 聚合加成, 掷币触发 } from './status';
+import { 聚合加成, 掷币触发, 调整SP } from './status';
 
 const 最大拼点次数 = 99;
 
@@ -62,11 +63,37 @@ function 一侧掷币(
   return { 记录, 威力: 合计 };
 }
 
-function 攻击等级加成(攻击方: 战斗单位, 防御方: 战斗单位): number {
-  const 攻 = 攻击方.攻击等级 + 聚合加成(攻击方).攻击等级;
-  const 防 = 防御方.攻击等级 + 聚合加成(防御方).攻击等级;
-  const 差 = 攻 - 防;
-  return 差 > 0 ? Math.floor(差 / 3) : 0;
+/** 可拼点守备(闪避/防御/强化防御)在拼点时使用防御等级, 其余(攻击/反击)使用攻击等级 */
+export function 是守备可拼点(技能: 技能 | undefined): boolean {
+  return !!技能 && !!技能.守备类型 && 可拼点守备列表.includes(技能.守备类型);
+}
+
+export function 拼点等级(单位: 战斗单位, 技能: 技能): number {
+  const 加成 = 聚合加成(单位);
+  if (是守备可拼点(技能)) return 单位.防御等级 + 加成.防御等级;
+  return 单位.攻击等级 + 加成.攻击等级;
+}
+
+/**
+ * 拼点加成: 默认只有等级更高的一方获得 +floor(差/3);
+ * 但攻击 vs 可拼点守备时, 只把加成给守备方 (反击按攻击 vs 攻击处理)。
+ */
+function 计算拼点加成(左侧技能: 技能, 右侧技能: 技能, 左等级: number, 右等级: number): [number, number] {
+  const 左守 = 是守备可拼点(左侧技能);
+  const 右守 = 是守备可拼点(右侧技能);
+  if (左守 !== 右守) {
+    if (左守) return [Math.max(0, Math.floor((左等级 - 右等级) / 3)), 0];
+    return [0, Math.max(0, Math.floor((右等级 - 左等级) / 3))];
+  }
+  const 差 = 左等级 - 右等级;
+  if (差 > 0) return [Math.floor(差 / 3), 0];
+  if (差 < 0) return [0, Math.floor(-差 / 3)];
+  return [0, 0];
+}
+
+/** 同一拼点序列中第 N 次胜利的 SP 收益: 10, 12, 14, 17 ... */
+function 胜利SP收益(次数: number): number {
+  return Math.floor(10 * Math.pow(1.2, Math.max(0, 次数 - 1)));
 }
 
 interface 摧毁结果 {
@@ -120,8 +147,9 @@ export function 拼点(左侧: 战斗单位, 左侧技能: 技能, 右侧: 战�
 
   const 左加成 = 聚合加成(左侧);
   const 右加成 = 聚合加成(右侧);
-  const 左攻级加成 = 攻击等级加成(左侧, 右侧);
-  const 右攻级加成 = 攻击等级加成(右侧, 左侧);
+  const 左等级 = 拼点等级(左侧, 左侧技能);
+  const 右等级 = 拼点等级(右侧, 右侧技能);
+  const [左攻级加成, 右攻级加成] = 计算拼点加成(左侧技能, 右侧技能, 左等级, 右等级);
 
   const 记录: 拼点回合记录[] = [];
   let 胜者: '左' | '右' | '无' = '无';
@@ -191,6 +219,20 @@ export function 拼点(左侧: 战斗单位, 左侧技能: 技能, 右侧: 战�
     胜者 = 末 ? (末.结果 === '左胜' ? '左' : 末.结果 === '右胜' ? '右' : '无') : '无';
   }
 
+  // 拼点序列 SP: 每次胜利按 10 * 1.2^(n-1) 递增, 取整
+  let 左胜次数 = 0;
+  let 右胜次数 = 0;
+  for (const 记录项 of 记录) {
+    if (记录项.结果 === '左胜') 左胜次数 += 1;
+    else if (记录项.结果 === '右胜') 右胜次数 += 1;
+  }
+  let 左SP = 0;
+  let 右SP = 0;
+  for (let i = 1; i <= 左胜次数; i++) 左SP += 胜利SP收益(i);
+  for (let i = 1; i <= 右胜次数; i++) 右SP += 胜利SP收益(i);
+  const 左实际SP = 左SP !== 0 ? 调整SP(左侧, 左SP) : 0;
+  const 右实际SP = 右SP !== 0 ? 调整SP(右侧, 右SP) : 0;
+
   return {
     左侧名称: 左侧.名称,
     右侧名称: 右侧.名称,
@@ -206,6 +248,8 @@ export function 拼点(左侧: 战斗单位, 左侧技能: 技能, 右侧: 战�
     右侧攻击等级加成: 右攻级加成,
     左侧拼点威力加成: 左加成.拼点威力,
     右侧拼点威力加成: 右加成.拼点威力,
+    左侧SP变化: 左实际SP,
+    右侧SP变化: 右实际SP,
   };
 }
 
