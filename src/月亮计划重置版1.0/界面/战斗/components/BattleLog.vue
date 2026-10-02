@@ -11,6 +11,7 @@ const 容器 = ref<HTMLElement | null>(null);
 
 function 行类(行: string): string {
   if (/倒下|死亡|失败|解体/.test(行)) return 'death';
+  if (/^\[(被动|支援|常驻)\]/.test(行)) return 'trait';
   if (/侵蚀/.test(行)) return 'corrosion';
   if (/罪孽共鸣/.test(行)) return 'resonance';
   if (/暴击|拼点|压制|击碎|闪避|防御|反击|招架/.test(行)) return 'clash';
@@ -109,5 +110,10 @@ watch(
   color: #f0d48a;
   font-weight: 700;
   text-shadow: 0 0 8px rgba(217, 164, 65, 0.5);
+}
+
+.log-line.trait {
+  border-left-color: #8a5de0;
+  color: #c8a0f0;
 }
 </style>

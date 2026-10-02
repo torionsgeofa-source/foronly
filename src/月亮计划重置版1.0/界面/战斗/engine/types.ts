@@ -39,19 +39,35 @@ export interface 硬币 {
   已破碎: boolean;
 }
 
+/** 结构化数值调整 (直接作用于单位字段并夹取范围) */
+export interface 数值调整 {
+  生命?: number;
+  SP?: number;
+  攻击等级?: number;
+  防御等级?: number;
+  速度?: number;
+  罪孽资源?: Partial<Record<罪孽名, number>>;
+}
+
 export type 技能效果 =
   | { type: '施加状态'; 状态: string; 强度?: number; 层数?: number }
+  | { type: '调整数值'; 数值: 数值调整 }
   | { type: '震颤引爆' }
   | { type: '消耗资源强化'; 罪孽: 罪孽名; 耗费: number; 威力: number }
   | { type: '条件增伤'; 条件: string; 数值: number };
 
 export interface 技能 {
   名称: string;
+  /** 战斗技能槽位: 1/2/3/守备; 由标准模板派生 */
+  槽位?: 技能槽位;
   罪孽: 罪孽名;
   攻击类型: 攻击类型名;
   基础威力: number;
+  /** 由 硬币 派生的硬币威力 / 类型, 保留以兼容旧逻辑 */
   硬币威力: number[];
   硬币类型: 硬币类型[];
+  /** 每枚硬币的详细定义 (含各自命中效果) */
+  硬币?: 战斗技能硬币[];
   攻击等级修正: number;
   攻击容量: number;
   效果: string;
@@ -66,6 +82,56 @@ export interface 技能 {
   effects?: 技能效果[];
 }
 
+/** 战斗技能槽位 (边狱公司: 1/2/3 号技能与守备技能) */
+export type 技能槽位 = 1 | 2 | 3 | '守备';
+
+/** 标准战斗技能模板中的单枚硬币 */
+export interface 战斗技能硬币 {
+  威力: number;
+  类型: 硬币类型;
+  /** 该枚硬币命中时结算的效果 (独立于其他硬币) */
+  命中效果?: 技能效果[];
+}
+
+/** 标准战斗技能 (拼点技能) 模板 */
+export interface 战斗技能模板 {
+  名称: string;
+  槽位: 技能槽位;
+  类别: 技能类别;
+  守备类型?: 守备类型名;
+  罪孽: 罪孽名;
+  攻击类型: 攻击类型名;
+  基础威力: number;
+  硬币: 战斗技能硬币[];
+  攻击等级修正: number;
+  攻击容量: number;
+  资源消耗?: number;
+  SP消耗?: number;
+  /** 供 UI 展示的简短说明 (可选) */
+  效果?: string;
+}
+
+/** 被动 / 支援技能的触发时机 */
+export type 技能时机 = '战斗开始时' | '回合开始时' | '回合结束时' | '命中时' | '受击时' | '击杀时' | '常驻';
+
+/** 被动技能模板 (只对自己生效) */
+export interface 被动技能模板 {
+  名称: string;
+  时机: 技能时机;
+  条件?: string;
+  效果: 技能效果[];
+  说明?: string;
+}
+
+/** 支援技能模板 (对自己 + 所有战斗中友方生效) */
+export interface 支援技能模板 {
+  名称: string;
+  时机: 技能时机;
+  条件?: string;
+  效果: 技能效果[];
+  说明?: string;
+}
+
 export interface 速度区间 {
   最小: number;
   最大: number;
@@ -76,6 +142,13 @@ export type 恐慌状态 = '无' | '待生效' | '生效中';
 export interface 状态效果 {
   强度: number;
   层数: number;
+}
+
+/** 单位生成时的基础属性快照, 供常驻光环每回合重算 (幂等) 使用 */
+export interface 基础属性 {
+  攻击等级: number;
+  防御等级: number;
+  速度: number;
 }
 
 export interface 战斗单位 {
@@ -100,6 +173,12 @@ export interface 战斗单位 {
   罪孽资源: Record<string, number>;
   状态效果: Record<string, 状态效果>;
   技能: Record<string, 技能>;
+  /** 战斗被动 (只对自己生效) */
+  被动技能: 被动技能模板[];
+  /** 支援被动 (对自己 + 所有战斗中友方生效) */
+  支援技能: 支援技能模板[];
+  /** 生成时的基础攻击/防御/速度, 用于常驻光环幂等重算 */
+  基础属性?: 基础属性;
   是否玩家: boolean;
   已选技能: string | null;
   /** 本次行动选中的目标 (支持攻击容量多目标) */

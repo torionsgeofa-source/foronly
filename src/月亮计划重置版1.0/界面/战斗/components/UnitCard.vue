@@ -51,13 +51,28 @@
     </div>
 
     <StatusIcons :statuses="unit.状态效果" />
+
+    <div v-if="被动列表.length || 支援列表.length" class="unit-traits">
+      <span
+        v-for="技能 in 被动列表"
+        :key="`被动-${技能.名称}`"
+        class="trait passive"
+        :title="`[被动·${技能.时机}] ${技能说明(技能)}`"
+      >被·{{ 技能.名称 }}</span>
+      <span
+        v-for="技能 in 支援列表"
+        :key="`支援-${技能.名称}`"
+        class="trait support"
+        :title="`[支援·${技能.时机}] ${技能说明(技能)}`"
+      >援·{{ 技能.名称 }}</span>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { 战斗单位 } from '../engine/types';
+import type { 战斗单位, 被动技能模板, 支援技能模板 } from '../engine/types';
 import { 罪孽列表, 罪孽颜色 } from '../engine/types';
-import { 聚合加成, 是否混乱 } from '../engine/status';
+import { 聚合加成, 是否混乱, 描述效果列表 } from '../engine/status';
 import { 存活, 有效速度 } from '../engine/battle';
 import { 战力评级 } from '../engine/level';
 import StatusIcons from './StatusIcons.vue';
@@ -83,6 +98,13 @@ const chaos百分比 = computed(() => `${Math.max(0, Math.min(100, (props.unit.�
 const 有效攻击 = computed(() => props.unit.攻击等级 + 聚合加成(props.unit).攻击等级);
 const 有效防御 = computed(() => props.unit.防御等级 + 聚合加成(props.unit).防御等级);
 const 有效速度值 = computed(() => 有效速度(props.unit));
+
+const 被动列表 = computed(() => props.unit.被动技能 ?? []);
+const 支援列表 = computed(() => props.unit.支援技能 ?? []);
+
+function 技能说明(技能: 被动技能模板 | 支援技能模板): string {
+  return 技能.说明 || 描述效果列表(技能.效果) || '无效果';
+}
 
 const 阵营类 = computed(() => (props.unit.阵营 === '敌人' ? 'enemy' : 'ally'));
 
@@ -324,5 +346,32 @@ const 评级类 = computed(() => {
   color: var(--b-text);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.unit-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.trait {
+  font-size: 9px;
+  line-height: 1.6;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--b-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--b-muted);
+  cursor: help;
+}
+
+.trait.passive {
+  border-left-width: 3px;
+  border-left-color: #8a5de0;
+}
+
+.trait.support {
+  border-left-width: 3px;
+  border-left-color: var(--b-accent-2);
 }
 </style>

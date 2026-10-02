@@ -11,6 +11,7 @@
       @click="emit('select', 技能.名称)"
     >
       <span class="skill-name">
+        <span v-if="槽位文本(技能)" class="slot-tag" :class="{ guard: 技能.槽位 === '守备' }">{{ 槽位文本(技能) }}</span>
         {{ 技能.名称 }}
         <span v-if="技能.类别 === 'EGO'" class="ego-tag">E.G.O</span>
       </span>
@@ -58,6 +59,12 @@ const props = defineProps<{
 const emit = defineEmits<{ (e: 'select', 技能名: string): void }>();
 
 const 技能列表 = computed(() => Object.values(props.skills));
+
+/** 标准模板派生出的战斗技能槽位标签; 非标准技能回退到守备/空 */
+function 槽位文本(技能: 技能): string {
+  if (技能.槽位 !== undefined) return 技能.槽位 === '守备' ? '守备' : `${技能.槽位}`;
+  return 技能.类别 === '守备' ? '守备' : '';
+}
 
 function 资源消耗(技能: 技能): number {
   return 技能.类别 === 'EGO' ? (技能.资源消耗 ?? 3) : 0;
@@ -154,6 +161,22 @@ function 硬币类(类型: 硬币类型 | undefined): string {
   display: flex;
   align-items: center;
   gap: 5px;
+}
+
+.slot-tag {
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.6;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--b-border);
+  color: var(--b-muted);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.slot-tag.guard {
+  border-style: dashed;
+  color: #9fc6e0;
 }
 
 .ego-tag {

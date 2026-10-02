@@ -1,4 +1,4 @@
-import type { 追加伤害记录, 战斗单位, 技能, 技能效果, 罪孽名 } from './types';
+import type { 追加伤害记录, 战斗单位, 技能, 技能效果, 罪孽名, 数值调整 } from './types';
 import { 罪孽列表 } from './types';
 import { 夹取, 默认随机源, 掷硬币, type 随机源 } from './rng';
 
@@ -223,19 +223,48 @@ export function 更新士气低落(单位: 战斗单位): void {
   }
 }
 
+/** 施加状态时的落点选择: 来源 / 目标 / 自动 (增益落来源, 减益落目标, 兼容旧战斗逻辑) */
+export type 状态目标选项 = '来源' | '目标' | '自动';
+
+function 解析状态目标(来源: 战斗单位, 目标: 战斗单位, 状态: string, 指定: 状态目标选项): 战斗单位 {
+  if (指定 === '来源') return 来源;
+  if (指定 === '目标') return 目标;
+  return 自我增益列表.includes(状态) ? 来源 : 目标;
+}
+
+/** 将数值调整直接写入单位字段并夹取范围 */
+function 应用数值调整(目标: 战斗单位, 数值: 数值调整): void {
+  if (数值.生命 !== undefined) 目标.生命值 = 夹取(目标.生命值 + 数值.生命, 0, Math.max(1, 目标.生命上限));
+  if (数值.SP !== undefined) 调整SP(目标, 数值.SP);
+  if (数值.攻击等级 !== undefined) 目标.攻击等级 = Math.max(1, Math.round(目标.攻击等级 + 数值.攻击等级));
+  if (数值.防御等级 !== undefined) 目标.防御等级 = Math.max(1, Math.round(目标.防御等级 + 数值.防御等级));
+  if (数值.速度 !== undefined) 目标.速度 = Math.max(1, Math.round(目标.速度 + 数值.速度));
+  if (数值.罪孽资源) {
+    for (const [罪孽, 数量] of Object.entries(数值.罪孽资源)) {
+      if (数量 === undefined || 数量 === 0) continue;
+      if (数量 > 0) 增加罪孽资源(目标, 罪孽, 数量);
+      else 消耗罪孽资源(目标, 罪孽, -数量);
+    }
+  }
+}
+
 /** 结算单条结构化技能效果 */
-function 结算单条效果(攻击方: 战斗单位, 受击方: 战斗单位, 效果: 技能效果): void {
+function 结算单条效果(来源: 战斗单位, 目标: 战斗单位, 效果: 技能效果, 状态目标: 状态目标选项 = '自动'): void {
   switch (效果.type) {
     case '施加状态': {
-      const 目标 = 自我增益列表.includes(效果.状态) ? 攻击方 : 受击方;
-      增加状态(目标, 效果.状态, 效果.强度 ?? 0, 效果.层数 ?? 1);
+      const 落点 = 解析状态目标(来源, 目标, 效果.状态, 状态目标);
+      增加状态(落点, 效果.状态, 效果.强度 ?? 0, 效果.层数 ?? 1);
+      break;
+    }
+    case '调整数值': {
+      应用数值调整(目标, 效果.数值);
       break;
     }
     case '震颤引爆': {
-      if (读取(受击方, '震颤') > 0) {
-        const 强度 = 读取强度(受击方, '震颤');
-        if (强度 > 0) 受击方.混乱阈值 = Math.max(1, 受击方.混乱阈值 - 强度);
-        消耗层数(受击方, '震颤', 1);
+      if (读取(目标, '震颤') > 0) {
+        const 强度 = 读取强度(目标, '震颤');
+        if (强度 > 0) 目标.混乱阈值 = Math.max(1, 目标.混乱阈值 - 强度);
+        消耗层数(目标, '震颤', 1);
       }
       break;
     }
@@ -246,10 +275,73 @@ function 结算单条效果(攻击方: 战斗单位, 受击方: 战斗单位, �
   }
 }
 
+/**
+ * 统一执行函数: 对 目标 结算 效果列表。
+ * 状态目标默认 '自动' (增益落来源/减益落目标), 被动与支援传 '目标' 使效果落在受益单位上。
+ */
+export function 执行效果(来源: 战斗单位, 目标: 战斗单位, 效果列表: 技能效果[], 状态目标: 状态目标选项 = '自动'): void {
+  for (const 效果 of 效果列表) 结算单条效果(来源, 目标, 效果, 状态目标);
+}
+
+function 符号数(值: number): string {
+  return `${值 >= 0 ? '+' : ''}${值}`;
+}
+
+/** 将单条技能效果转为中文短句, 供 UI tooltip / 日志使用 */
+export function 描述效果(效果: 技能效果): string {
+  switch (效果.type) {
+    case '施加状态':
+      return `施加${效果.状态}${效果.强度 ? ` 强度${效果.强度}` : ''}${效果.层数 ? ` ×${效果.层数}` : ''}`;
+    case '调整数值': {
+      const 段: string[] = [];
+      const 数 = 效果.数值;
+      if (数.生命 !== undefined) 段.push(`生命${符号数(数.生命)}`);
+      if (数.SP !== undefined) 段.push(`SP${符号数(数.SP)}`);
+      if (数.攻击等级 !== undefined) 段.push(`攻击等级${符号数(数.攻击等级)}`);
+      if (数.防御等级 !== undefined) 段.push(`防御等级${符号数(数.防御等级)}`);
+      if (数.速度 !== undefined) 段.push(`速度${符号数(数.速度)}`);
+      if (数.罪孽资源) {
+        for (const [罪孽, 数量] of Object.entries(数.罪孽资源)) {
+          if (数量 === undefined || 数量 === 0) continue;
+          段.push(`${罪孽}资源${符号数(数量)}`);
+        }
+      }
+      return 段.join(' ') || '数值调整';
+    }
+    case '震颤引爆':
+      return '震颤引爆';
+    case '消耗资源强化':
+      return `消耗${效果.罪孽}资源${效果.耗费}, 威力+${效果.威力}`;
+    case '条件增伤':
+      return `${效果.条件}时威力+${效果.数值}`;
+  }
+}
+
+/** 将效果列表转为中文短句 */
+export function 描述效果列表(效果列表: 技能效果[]): string {
+  return 效果列表.map(描述效果).join('; ');
+}
+
+/** 简易条件判定: 支持 生命低于/高于 N%、SP/理智值低于/高于 N、满生命、混乱 等短语 */
+export function 满足条件(单位: 战斗单位, 条件?: string): boolean {
+  if (!条件) return true;
+  const 生命比 = 单位.生命上限 > 0 ? 单位.生命值 / 单位.生命上限 : 0;
+  let 匹配: RegExpMatchArray | null = null;
+  if ((匹配 = 条件.match(/生命低于\s*(-?\d+)\s*%/))) return 生命比 < Number(匹配[1]) / 100;
+  if ((匹配 = 条件.match(/生命高于\s*(-?\d+)\s*%/))) return 生命比 > Number(匹配[1]) / 100;
+  if ((匹配 = 条件.match(/(?:SP|理智值?)低于\s*(-?\d+)/))) return 单位.理智值 < Number(匹配[1]);
+  if ((匹配 = 条件.match(/(?:SP|理智值?)高于\s*(-?\d+)/))) return 单位.理智值 > Number(匹配[1]);
+  if (/生命值?满/.test(条件)) return 单位.生命值 >= 单位.生命上限;
+  if (/未混乱/.test(条件)) return !是否混乱(单位);
+  if (/混乱/.test(条件)) return 是否混乱(单位);
+  if (/生命值?未满/.test(条件)) return 单位.生命值 < 单位.生命上限;
+  return true;
+}
+
 /** 命中后按 rupt/流血/烧伤/震颤/沉沦/充能 施加状态; 优先使用结构化 effects, 否则回退字符串 效果 */
 export function 施加技能附带状态(攻击方: 战斗单位, 受击方: 战斗单位, 技能: 技能): void {
   if (技能.effects && 技能.effects.length > 0) {
-    for (const 效果 of 技能.effects) 结算单条效果(攻击方, 受击方, 效果);
+    执行效果(攻击方, 受击方, 技能.effects);
     return;
   }
   const 效果 = 技能.效果;
