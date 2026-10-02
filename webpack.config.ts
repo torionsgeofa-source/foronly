@@ -228,7 +228,14 @@ function parse_configuration(entry: Entry): (_env: any, argv: any) => webpack.Co
       rules: [
         {
           test: /\.vue$/,
-          use: 'vue-loader',
+          use: {
+            loader: 'vue-loader',
+            options: {
+              compilerOptions: {
+                hoistStatic: false,
+              },
+            },
+          },
           exclude: /node_modules/,
         },
         {
