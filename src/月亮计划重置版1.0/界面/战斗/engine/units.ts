@@ -15,6 +15,7 @@ import type {
   被动技能模板,
   支援技能模板,
 } from './types';
+import { 罪孽列表, 攻击类型列表, 硬币类型列表 } from './types';
 
 /** 兼容旧 API: 由散字段构造运行时技能; 若提供 硬币 则优先由其派生 硬币威力/硬币类型 */
 export function 构造技能(数据: {
@@ -650,8 +651,107 @@ function 推断守备(名称: string, 效果: string): { 类别: '攻击' | '守
   return { 类别: '攻击' };
 }
 
+const 合法罪孽 = new Set<string>(罪孽列表);
+const 合法攻击类型 = new Set<string>(攻击类型列表);
+const 合法硬币类型 = new Set<string>(硬币类型列表);
+const 合法类别 = new Set<string>(['攻击', '守备', 'EGO']);
+const 合法守备类型 = new Set<string>(['闪避', '防御', '强化防御', '反击', '强化反击']);
+
+function 数值夹取(v: unknown, 最小: number, 最大: number, 默认: number): number {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 默认;
+  return Math.min(最大, Math.max(最小, n));
+}
+
+/** 本地技能库技能的深拷贝 (作为权威定义, 不受变量覆盖) */
+export function 克隆技能(技能: 技能): 技能 {
+  return {
+    ...技能,
+    硬币威力: [...技能.硬币威力],
+    硬币类型: [...技能.硬币类型],
+    硬币: 技能.硬币 ? 技能.硬币.map(复制硬币) : undefined,
+    effects: 技能.effects ? 技能.effects.map(效果 => ({ ...效果 })) : undefined,
+  };
+}
+
 /**
- * 将 MVU 技能记录转换为引擎技能; 若内置技能库存在同名技能, 则优先补全硬币类型/硬币/槽位等字段.
+ * 将任意来源 (AI / 新材料) 生成的新技能标准化为符合模板规范的技能.
+ * 非法枚举回退默认、数值夹取到合法范围、补齐硬币与资源字段; 返回修复记录.
+ */
+export function 标准化技能(名称: string, 原始: Record<string, unknown>): { 技能: 技能; 修复: string[] } {
+  const 修复: string[] = [];
+  const 原始类别 = typeof 原始.类别 === 'string' ? 原始.类别 : '';
+
+  let 类别: 技能类别;
+  if (合法类别.has(原始类别)) 类别 = 原始类别 as 技能类别;
+  else {
+    const 推断结果 = 推断守备(名称, typeof 原始.效果 === 'string' ? 原始.效果 : '');
+    if (!原始类别 && 推断结果.类别 === '守备') {
+      类别 = '守备';
+      修复.push('未声明类别, 按名称推断为守备');
+    } else {
+      类别 = '攻击';
+      if (原始类别) 修复.push(`类别「${原始类别}」非法→攻击`);
+    }
+  }
+
+  let 罪孽: 罪孽名 = '暴怒';
+  if (合法罪孽.has(原始.罪孽 as string)) 罪孽 = 原始.罪孽 as 罪孽名;
+  else if (原始.罪孽) 修复.push(`罪孽「${原始.罪孽}」非法→暴怒`);
+
+  let 攻击类型: 攻击类型名 = '打击';
+  if (合法攻击类型.has(原始.攻击类型 as string)) 攻击类型 = 原始.攻击类型 as 攻击类型名;
+  else if (原始.攻击类型) 修复.push(`攻击类型「${原始.攻击类型}」非法→打击`);
+
+  let 守备类型: 守备类型名 | undefined;
+  if (类别 === '守备') {
+    if (合法守备类型.has(原始.守备类型 as string)) 守备类型 = 原始.守备类型 as 守备类型名;
+    else {
+      守备类型 = 推断守备(名称, typeof 原始.效果 === 'string' ? 原始.效果 : '').守备类型 ?? '防御';
+      修复.push(`守备类型缺失/非法→${守备类型}`);
+    }
+  }
+
+  let 硬币威力 = Array.isArray(原始.硬币威力) ? (原始.硬币威力 as unknown[]).map(x => 数值夹取(x, -20, 20, 0)) : [];
+  let 硬币类型 = Array.isArray(原始.硬币类型)
+    ? (原始.硬币类型 as unknown[]).map(t => (合法硬币类型.has(t as string) ? (t as 硬币类型) : '普通'))
+    : [];
+  if (硬币威力.length === 0) {
+    硬币威力 = [1];
+    修复.push('缺少硬币→默认 [1]');
+  }
+  while (硬币类型.length < 硬币威力.length) 硬币类型.push('普通');
+  硬币类型 = 硬币类型.slice(0, 硬币威力.length);
+  const 硬币: 战斗技能硬币[] = 硬币威力.map((w, i) => ({ 威力: w, 类型: 硬币类型[i] }));
+
+  let 槽位: 技能槽位 | undefined;
+  if (原始.槽位 === 1 || 原始.槽位 === 2 || 原始.槽位 === 3 || 原始.槽位 === '守备') 槽位 = 原始.槽位;
+
+  const 技能结果: 技能 = {
+    名称,
+    槽位,
+    罪孽,
+    攻击类型,
+    基础威力: 数值夹取(原始.基础威力, 0, 50, 1),
+    硬币威力,
+    硬币类型,
+    硬币,
+    攻击等级修正: 数值夹取(原始.攻击等级修正, -8, 6, 0),
+    攻击容量: Math.round(数值夹取(原始.攻击容量, 1, 5, 1)),
+    效果: typeof 原始.效果 === 'string' ? 原始.效果 : '',
+    类别,
+    守备类型,
+    资源消耗: 类别 === 'EGO' ? 数值夹取(原始.资源消耗, 0, 20, 3) : 0,
+    SP消耗: 类别 === 'EGO' ? 数值夹取(原始.SP消耗, 0, 45, 10) : 0,
+    effects: Array.isArray(原始.effects) ? (原始.effects as 技能效果[]) : undefined,
+  };
+  return { 技能: 技能结果, 修复 };
+}
+
+/**
+ * 将变量中的技能记录解析为引擎技能:
+ * - 名称命中本地技能库 → 直接采用本地定义 (权威, 不受变量覆盖);
+ * - 本地未知的新技能 → 走标准化校验 (非法枚举/数值回退夹取) 并记录修复.
  */
 export function 技能记录转技能(
   记录: Record<
@@ -661,6 +761,7 @@ export function 技能记录转技能(
       攻击类型?: string;
       基础威力?: number;
       硬币威力?: number[];
+      硬币类型?: string[];
       攻击等级修正?: number;
       攻击容量?: number;
       效果?: string;
@@ -668,40 +769,21 @@ export function 技能记录转技能(
       守备类型?: string;
       资源消耗?: number;
       SP消耗?: number;
+      槽位?: 技能槽位;
+      effects?: 技能效果[];
     }
   >,
 ): Record<string, 技能> {
   const 结果: Record<string, 技能> = {};
   for (const [名称, 原始] of Object.entries(记录)) {
-    const 硬币威力 = Array.isArray(原始.硬币威力) && 原始.硬币威力.length > 0 ? 原始.硬币威力 : [0];
-    const 内置 = 内置技能库[名称];
-    const 原始类别 = 原始.类别 === '攻击' || 原始.类别 === '守备' || 原始.类别 === 'EGO' ? 原始.类别 : undefined;
-    const 推断 = 内置 ? { 类别: 内置.类别, 守备类型: 内置.守备类型 } : 推断守备(名称, 原始.效果 ?? '');
-    // 内置同名技能以库中定义为准 (避免 schema 对 类别 的 prefault '攻击' 覆盖守备/EGO)
-    const 类别 = 内置 ? 内置.类别 : (原始类别 ?? 推断.类别);
-    const 原始守备 = 原始.守备类型 as 守备类型名 | undefined;
-    const 守备类型 = 类别 === '守备' ? (内置?.守备类型 || 原始守备 || 推断.守备类型) : undefined;
-    const 资源消耗 = 类别 === 'EGO' ? (Number(原始.资源消耗) || 内置?.资源消耗 || 3) : (Number(原始.资源消耗) || 0);
-    const SP消耗 = 类别 === 'EGO' ? (Number(原始.SP消耗) || 内置?.SP消耗 || 10) : (Number(原始.SP消耗) || 0);
-    const 基础: 技能 = {
-      名称,
-      槽位: 内置?.槽位,
-      罪孽: ((原始.罪孽 ?? 内置?.罪孽 ?? '暴怒') as 罪孽名),
-      攻击类型: ((原始.攻击类型 ?? 内置?.攻击类型 ?? '打击') as 攻击类型名),
-      基础威力: Number(原始.基础威力 ?? 内置?.基础威力 ?? 0),
-      硬币威力: [...硬币威力],
-      硬币类型: 内置 && 内置.硬币类型.length === 硬币威力.length ? [...内置.硬币类型] : 硬币威力.map(() => '普通' as 硬币类型),
-      硬币: 内置?.硬币 ? 内置.硬币.map(复制硬币) : undefined,
-      攻击等级修正: Number(原始.攻击等级修正 ?? 内置?.攻击等级修正 ?? 0),
-      攻击容量: Math.max(1, Number(原始.攻击容量 ?? 内置?.攻击容量 ?? 1)),
-      效果: 原始.效果 ?? 内置?.效果 ?? '',
-      类别,
-      守备类型,
-      资源消耗,
-      SP消耗,
-      effects: 内置 ? (聚合硬币效果(内置.硬币).length > 0 ? 聚合硬币效果(内置.硬币) : undefined) : undefined,
-    };
-    结果[名称] = 基础;
+    const 本地 = 内置技能库[名称];
+    if (本地) {
+      结果[名称] = 克隆技能(本地);
+      continue;
+    }
+    const { 技能, 修复 } = 标准化技能(名称, 原始 as Record<string, unknown>);
+    if (修复.length > 0) console.warn(`[技能标准化] 「${名称}」已修复: ${修复.join('; ')}`);
+    结果[名称] = 技能;
   }
   return 结果;
 }
