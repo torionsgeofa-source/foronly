@@ -2,7 +2,13 @@
   <div class="sin-resources">
     <div class="group-title">罪孽资源</div>
     <div class="sin-grid">
-      <span v-for="罪孽 in 罪孽列表" :key="罪孽" class="sin-chip" :style="{ borderColor: 罪孽颜色[罪孽] }">
+      <span
+        v-for="罪孽 in 罪孽列表"
+        :key="罪孽"
+        class="sin-chip"
+        :class="{ active: (资源[罪孽] ?? 0) > 0 }"
+        :style="{ borderColor: 罪孽颜色[罪孽], '--sin': 罪孽颜色[罪孽] }"
+      >
         <span class="sin-dot" :style="{ background: 罪孽颜色[罪孽] }" />
         <span class="sin-name">{{ 罪孽 }}</span>
         <span class="sin-val">{{ 资源[罪孽] ?? 0 }}</span>
@@ -66,5 +72,14 @@ defineProps<{ 资源: 罪孽资源 }>();
   font-weight: 800;
   color: var(--b-text);
   font-variant-numeric: tabular-nums;
+}
+
+.sin-chip.active {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 9px -2px var(--sin);
+}
+
+.sin-chip.active .sin-val {
+  color: #fff;
 }
 </style>

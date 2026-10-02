@@ -4,7 +4,10 @@
       {{ label }}
       <span v-if="required" class="req">*</span>
     </span>
-    <input v-model="model" class="field-input" :type="type" :placeholder="placeholder" />
+    <input v-model="model" class="field-input" :type="type" :placeholder="placeholder" :list="listId" />
+    <datalist v-if="listId" :id="listId">
+      <option v-for="项 in options" :key="项" :value="项" />
+    </datalist>
     <span v-if="error" class="field-error">{{ error }}</span>
   </label>
 </template>
@@ -12,12 +15,26 @@
 <script setup lang="ts">
 const model = defineModel<string>({ default: '' });
 
-withDefaults(defineProps<{ label: string; placeholder?: string; required?: boolean; error?: string; type?: string }>(), {
-  placeholder: '',
-  required: false,
-  error: '',
-  type: 'text',
-});
+const props = withDefaults(
+  defineProps<{
+    label: string;
+    placeholder?: string;
+    required?: boolean;
+    error?: string;
+    type?: string;
+    options?: string[];
+  }>(),
+  {
+    placeholder: '',
+    required: false,
+    error: '',
+    type: 'text',
+    options: () => [],
+  },
+);
+
+const 唯一Id = `field-${Math.random().toString(36).slice(2, 9)}`;
+const listId = computed(() => (props.options.length ? `${唯一Id}-list` : ''));
 </script>
 
 <style scoped>

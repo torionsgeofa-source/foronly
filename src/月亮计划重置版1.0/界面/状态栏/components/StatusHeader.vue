@@ -35,6 +35,7 @@
         :max="生命体征.生命值.上限"
         color="var(--b-hp)"
         :status="生命体征.生命值.状态描述"
+        :warn="生命比例 < 0.35 && 生命体征.生命值.数值 > 0"
         :value-text="`${Math.round(生命体征.生命值.数值)}/${生命体征.生命值.上限}`"
       />
       <Bar
@@ -84,6 +85,11 @@ const 显示名称 = computed(() => {
 const 所需经验 = computed(() => {
   if (props.基础信息.等级 >= 等级上限) return Math.max(1, props.基础信息.经验);
   return Math.max(1, 升级所需经验(props.基础信息.等级));
+});
+
+const 生命比例 = computed(() => {
+  const 上限 = props.生命体征.生命值.上限;
+  return 上限 > 0 ? props.生命体征.生命值.数值 / 上限 : 0;
 });
 
 const 混乱临界 = computed(

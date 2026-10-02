@@ -18,10 +18,17 @@
         <h2 class="group-title">基本情报</h2>
         <div class="field-grid">
           <FormField v-model="表单.名称" label="名称" placeholder="你的名字" required :error="名称错误" />
-          <FormField v-model="表单.种族" label="种族" placeholder="人类" :error="种族错误" />
-          <FormField v-model="表单.身份" label="身份" placeholder="无" :error="身份错误" />
+          <FormField v-model="表单.种族" label="种族" placeholder="人类" :options="种族建议" :error="种族错误" />
+          <FormField v-model="表单.身份" label="身份" placeholder="无" :options="身份建议" :error="身份错误" />
           <FormField v-model="表单.当前称号" label="当前称号" placeholder="无" :error="称号错误" />
-          <FormField v-model="表单.等级" label="等级（1-90）" type="number" placeholder="1" :error="等级错误" />
+          <div class="field level-field">
+            <span class="field-label">等级（1-90）</span>
+            <div class="level-control">
+              <input v-model.number="表单.等级" type="range" min="1" max="90" step="1" class="level-range" />
+              <span class="level-value">Lv.{{ 表单.等级 }}</span>
+            </div>
+            <span v-if="等级错误" class="field-error">{{ 等级错误 }}</span>
+          </div>
         </div>
       </section>
 
@@ -84,6 +91,9 @@ type 表单类型 = z.input<typeof 表单校验>;
 
 const 提交中 = ref(false);
 const 已提交 = ref(false);
+
+const 种族建议 = ['人类', '血魔', '异想体', '黑兽', '半机械改造人', '其他'];
+const 身份建议 = ['收尾人', '翼公司员工', '协会成员', '帮派成员', '事务所负责人', '自由职业者', '无'];
 
 function 去宏(文本: string): string {
   if (!文本 || !文本.includes('{{')) return 文本;
@@ -188,6 +198,7 @@ async function 提交(): Promise<void> {
     data.世界状态.当前地点 = 值.当前地点 || '16区后巷，拉·曼却领外围';
     data.世界状态.当前场景 = 值.当前场景 || '日常';
 
+    await nextTick();
     await createChatMessages([{ role: 'user', name: 值.名称, message: 构建描述(值) }]);
     await triggerSlash('/trigger');
     已提交.value = true;
@@ -294,6 +305,36 @@ async function 提交(): Promise<void> {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.level-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  grid-column: span 2;
+}
+
+.level-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.level-range {
+  flex: 1;
+  height: 4px;
+  accent-color: var(--b-accent);
+  cursor: pointer;
+}
+
+.level-value {
+  flex: 0 0 auto;
+  min-width: 52px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--b-accent-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .card-foot {

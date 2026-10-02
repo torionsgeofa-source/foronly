@@ -9,7 +9,7 @@
         </div>
         <div class="npc-affection">
           <span class="aff-label">好感度</span>
-          <Bar :value="对象.好感度" :max="100" color="#e05297" :value-text="`${Math.round(对象.好感度)}/100`" />
+          <Bar :value="对象.好感度" :max="100" :color="好感色(对象.好感度)" :value-text="`${Math.round(对象.好感度)}/100`" />
         </div>
         <div class="npc-line"><span class="k">服饰</span><span class="v">{{ 对象.服饰 || '默认服饰' }}</span></div>
         <div class="npc-line"><span class="k">当前行为</span><span class="v">{{ 对象.当前行为 || '无' }}</span></div>
@@ -26,6 +26,14 @@ import Bar from './Bar.vue';
 const props = defineProps<{ 对象: 交互对象组 }>();
 
 const 对象列表 = computed(() => Object.entries(props.对象 ?? {}).map(([名称, 值]) => ({ 名称, ...值 })));
+
+function 好感色(值: number): string {
+  const 数字 = Number(值) || 0;
+  if (数字 >= 80) return '#e04b6a';
+  if (数字 >= 50) return '#e05297';
+  if (数字 >= 20) return '#b06aa0';
+  return 'var(--b-muted)';
+}
 </script>
 
 <style scoped>

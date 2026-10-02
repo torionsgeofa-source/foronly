@@ -2,7 +2,7 @@
   <div class="bar">
     <span v-if="label" class="bar-label">{{ label }}</span>
     <div class="bar-track">
-      <div class="bar-fill" :style="填充样式" />
+      <div class="bar-fill" :class="{ warn }" :style="填充样式" />
       <div v-if="mid" class="bar-mid" />
     </div>
     <span class="bar-tail">
@@ -23,8 +23,9 @@ const props = withDefaults(
     mid?: boolean;
     status?: string;
     valueText?: string;
+    warn?: boolean;
   }>(),
-  { max: 100, min: 0, color: 'var(--b-accent)', mid: false },
+  { max: 100, min: 0, color: 'var(--b-accent)', mid: false, warn: false },
 );
 
 const 百分比 = computed(() => {
@@ -81,6 +82,22 @@ const 填充样式 = computed(() => {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 55%);
+}
+
+.bar-fill.warn {
+  animation: bar-warn 1.1s ease-in-out infinite;
+}
+
+@keyframes bar-warn {
+  0%,
+  100% {
+    filter: brightness(1);
+    box-shadow: 0 0 0 rgba(224, 75, 58, 0);
+  }
+  50% {
+    filter: brightness(1.45);
+    box-shadow: 0 0 8px rgba(224, 75, 58, 0.85);
+  }
 }
 
 .bar-mid {
