@@ -1,0 +1,1145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "世界状态": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "当前时间": {
+          "default": "都市历 XXX年XX月XX日 XX:XX",
+          "type": "string"
+        },
+        "当前地点": {
+          "default": "某个巢/某个后巷_具体地点",
+          "type": "string"
+        },
+        "当前场景": {
+          "default": "未知场景",
+          "type": "string"
+        }
+      }
+    },
+    "玩家状态": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "基础信息": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "名称": {
+              "default": "{{user}}",
+              "type": "string"
+            },
+            "性别": {
+              "default": "未知",
+              "type": "string"
+            },
+            "种族": {
+              "default": "人类",
+              "type": "string"
+            },
+            "身份": {
+              "default": "无",
+              "type": "string"
+            },
+            "当前称号": {
+              "default": "无",
+              "type": "string"
+            },
+            "阶层": {
+              "default": "普通",
+              "type": "string",
+              "enum": [
+                "普通",
+                "稀有",
+                "史诗",
+                "传说",
+                "神话"
+              ]
+            },
+            "_战力评级": {
+              "default": "未评级",
+              "type": "string"
+            },
+            "等级": {
+              "default": 1,
+              "type": "number"
+            },
+            "经验": {
+              "default": 0,
+              "type": "number"
+            }
+          }
+        },
+        "生命体征": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "生命值": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "数值": {
+                  "default": -1,
+                  "type": "number"
+                },
+                "上限": {
+                  "default": 50,
+                  "type": "number"
+                },
+                "状态描述": {
+                  "default": "健康",
+                  "type": "string"
+                }
+              }
+            },
+            "理智值": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "数值": {
+                  "default": 45,
+                  "type": "number"
+                },
+                "状态描述": {
+                  "default": "稳定",
+                  "type": "string"
+                }
+              }
+            },
+            "混乱": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "数值": {
+                  "default": 0,
+                  "type": "number"
+                },
+                "阈值": {
+                  "default": 50,
+                  "type": "number"
+                },
+                "状态": {
+                  "default": "正常",
+                  "type": "string"
+                }
+              }
+            },
+            "生命加成": {
+              "default": 0,
+              "type": "number"
+            },
+            "护盾": {
+              "default": 0,
+              "type": "number"
+            }
+          }
+        },
+        "战斗属性": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "攻击等级": {
+              "default": 1,
+              "type": "number"
+            },
+            "防御等级": {
+              "default": 1,
+              "type": "number"
+            }
+          }
+        },
+        "罪孽抗性": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "暴怒": {
+              "default": 1,
+              "type": "number"
+            },
+            "色欲": {
+              "default": 1,
+              "type": "number"
+            },
+            "怠惰": {
+              "default": 1,
+              "type": "number"
+            },
+            "暴食": {
+              "default": 1,
+              "type": "number"
+            },
+            "忧郁": {
+              "default": 1,
+              "type": "number"
+            },
+            "傲慢": {
+              "default": 1,
+              "type": "number"
+            },
+            "嫉妒": {
+              "default": 1,
+              "type": "number"
+            }
+          }
+        },
+        "物理抗性": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "斩击": {
+              "default": 1,
+              "type": "number"
+            },
+            "突刺": {
+              "default": 1,
+              "type": "number"
+            },
+            "打击": {
+              "default": 1,
+              "type": "number"
+            }
+          }
+        },
+        "状态效果": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "description": "状态名"
+          },
+          "additionalProperties": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "强度": {
+                "default": 0,
+                "type": "number"
+              },
+              "层数": {
+                "default": 0,
+                "type": "number"
+              }
+            }
+          }
+        },
+        "技能": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "description": "技能名"
+          },
+          "additionalProperties": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "罪孽": {
+                "default": "无",
+                "type": "string"
+              },
+              "攻击类型": {
+                "default": "打击",
+                "type": "string"
+              },
+              "类别": {
+                "default": "战斗",
+                "type": "string"
+              },
+              "守备类型": {
+                "default": "",
+                "type": "string"
+              },
+              "时机": {
+                "default": "",
+                "type": "string"
+              },
+              "条件": {
+                "default": "",
+                "type": "string"
+              },
+              "基础威力": {
+                "default": 0,
+                "type": "number"
+              },
+              "硬币威力": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "攻击等级修正": {
+                "default": 0,
+                "type": "number"
+              },
+              "攻击容量": {
+                "default": 1,
+                "type": "number"
+              },
+              "效果": {
+                "default": "",
+                "type": "string"
+              },
+              "SP消耗": {
+                "default": 0,
+                "type": "number"
+              }
+            }
+          }
+        },
+        "_技能名": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "穿着装备": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "上衣": {
+              "default": {},
+              "anyOf": [
+                {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "名称": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "效果": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "下装": {
+              "default": {},
+              "anyOf": [
+                {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "名称": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "效果": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "武器": {
+              "default": {},
+              "anyOf": [
+                {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "名称": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "效果": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "防具": {
+              "default": {},
+              "anyOf": [
+                {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "名称": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "效果": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "物品": {
+              "default": {},
+              "anyOf": [
+                {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "名称": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "效果": {
+                      "default": "",
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        "背包": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "钱财_眼": {
+              "default": 0,
+              "type": "number"
+            },
+            "拥有的物品": {
+              "default": {},
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "物品名"
+              },
+              "additionalProperties": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "数量": {
+                    "default": 0,
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "角色": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "description": "角色名称"
+      },
+      "additionalProperties": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "基础信息": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "名称": {
+                "default": "",
+                "type": "string"
+              },
+              "性别": {
+                "default": "未知",
+                "type": "string"
+              },
+              "种族": {
+                "default": "人类",
+                "type": "string"
+              },
+              "身份": {
+                "default": "无",
+                "type": "string"
+              },
+              "当前称号": {
+                "default": "无",
+                "type": "string"
+              },
+              "阶层": {
+                "default": "普通",
+                "type": "string",
+                "enum": [
+                  "普通",
+                  "稀有",
+                  "史诗",
+                  "传说",
+                  "神话"
+                ]
+              },
+              "_战力评级": {
+                "default": "未评级",
+                "type": "string"
+              },
+              "等级": {
+                "default": 1,
+                "type": "number"
+              },
+              "经验": {
+                "default": 0,
+                "type": "number"
+              }
+            }
+          },
+          "生命体征": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "生命值": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "数值": {
+                    "default": -1,
+                    "type": "number"
+                  },
+                  "上限": {
+                    "default": 50,
+                    "type": "number"
+                  },
+                  "状态描述": {
+                    "default": "健康",
+                    "type": "string"
+                  }
+                }
+              },
+              "理智值": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "数值": {
+                    "default": 45,
+                    "type": "number"
+                  },
+                  "状态描述": {
+                    "default": "稳定",
+                    "type": "string"
+                  }
+                }
+              },
+              "混乱": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "数值": {
+                    "default": 0,
+                    "type": "number"
+                  },
+                  "阈值": {
+                    "default": 50,
+                    "type": "number"
+                  },
+                  "状态": {
+                    "default": "正常",
+                    "type": "string"
+                  }
+                }
+              },
+              "生命加成": {
+                "default": 0,
+                "type": "number"
+              },
+              "护盾": {
+                "default": 0,
+                "type": "number"
+              }
+            }
+          },
+          "战斗属性": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "攻击等级": {
+                "default": 1,
+                "type": "number"
+              },
+              "防御等级": {
+                "default": 1,
+                "type": "number"
+              }
+            }
+          },
+          "罪孽抗性": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "暴怒": {
+                "default": 1,
+                "type": "number"
+              },
+              "色欲": {
+                "default": 1,
+                "type": "number"
+              },
+              "怠惰": {
+                "default": 1,
+                "type": "number"
+              },
+              "暴食": {
+                "default": 1,
+                "type": "number"
+              },
+              "忧郁": {
+                "default": 1,
+                "type": "number"
+              },
+              "傲慢": {
+                "default": 1,
+                "type": "number"
+              },
+              "嫉妒": {
+                "default": 1,
+                "type": "number"
+              }
+            }
+          },
+          "物理抗性": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "斩击": {
+                "default": 1,
+                "type": "number"
+              },
+              "突刺": {
+                "default": 1,
+                "type": "number"
+              },
+              "打击": {
+                "default": 1,
+                "type": "number"
+              }
+            }
+          },
+          "状态效果": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "description": "状态名"
+            },
+            "additionalProperties": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "强度": {
+                  "default": 0,
+                  "type": "number"
+                },
+                "层数": {
+                  "default": 0,
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "技能": {
+            "default": {},
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "description": "技能名"
+            },
+            "additionalProperties": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "罪孽": {
+                  "default": "无",
+                  "type": "string"
+                },
+                "攻击类型": {
+                  "default": "打击",
+                  "type": "string"
+                },
+                "类别": {
+                  "default": "战斗",
+                  "type": "string"
+                },
+                "守备类型": {
+                  "default": "",
+                  "type": "string"
+                },
+                "时机": {
+                  "default": "",
+                  "type": "string"
+                },
+                "条件": {
+                  "default": "",
+                  "type": "string"
+                },
+                "基础威力": {
+                  "default": 0,
+                  "type": "number"
+                },
+                "硬币威力": {
+                  "default": [],
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "攻击等级修正": {
+                  "default": 0,
+                  "type": "number"
+                },
+                "攻击容量": {
+                  "default": 1,
+                  "type": "number"
+                },
+                "效果": {
+                  "default": "",
+                  "type": "string"
+                },
+                "SP消耗": {
+                  "default": 0,
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "_技能名": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "穿着装备": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "上衣": {
+                "default": {},
+                "anyOf": [
+                  {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "名称": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "效果": {
+                        "default": "",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "下装": {
+                "default": {},
+                "anyOf": [
+                  {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "名称": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "效果": {
+                        "default": "",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "武器": {
+                "default": {},
+                "anyOf": [
+                  {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "名称": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "效果": {
+                        "default": "",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "防具": {
+                "default": {},
+                "anyOf": [
+                  {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "名称": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "效果": {
+                        "default": "",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              },
+              "物品": {
+                "default": {},
+                "anyOf": [
+                  {
+                    "default": {},
+                    "type": "object",
+                    "properties": {
+                      "名称": {
+                        "default": "",
+                        "type": "string"
+                      },
+                      "效果": {
+                        "default": "",
+                        "type": "string"
+                      }
+                    }
+                  },
+                  {
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          },
+          "背包": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "钱财_眼": {
+                "default": 0,
+                "type": "number"
+              },
+              "拥有的物品": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "物品名"
+                },
+                "additionalProperties": {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "数量": {
+                      "default": 0,
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "战斗": {
+      "default": {},
+      "type": "object",
+      "properties": {
+        "进行中": {
+          "default": false,
+          "type": "boolean"
+        },
+        "回合": {
+          "default": 0,
+          "type": "number"
+        },
+        "当前行动者": {
+          "default": "",
+          "type": "string"
+        },
+        "速度顺序": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "日志": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "单位": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "description": "单位名称"
+          },
+          "additionalProperties": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "阵营": {
+                "default": "敌人",
+                "type": "string"
+              },
+              "身份": {
+                "default": "未知",
+                "type": "string"
+              },
+              "_战力评级": {
+                "default": "未评级",
+                "type": "string"
+              },
+              "等级": {
+                "default": 1,
+                "type": "number"
+              },
+              "生命值": {
+                "default": 1,
+                "type": "number"
+              },
+              "生命上限": {
+                "default": 1,
+                "type": "number"
+              },
+              "护盾": {
+                "default": 0,
+                "type": "number"
+              },
+              "理智值": {
+                "default": 0,
+                "type": "number"
+              },
+              "混乱值": {
+                "default": 0,
+                "type": "number"
+              },
+              "混乱阈值": {
+                "default": 50,
+                "type": "number"
+              },
+              "攻击等级": {
+                "default": 1,
+                "type": "number"
+              },
+              "防御等级": {
+                "default": 1,
+                "type": "number"
+              },
+              "罪孽抗性": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "暴怒": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "色欲": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "怠惰": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "暴食": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "忧郁": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "傲慢": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "嫉妒": {
+                    "default": 1,
+                    "type": "number"
+                  }
+                }
+              },
+              "物理抗性": {
+                "default": {},
+                "type": "object",
+                "properties": {
+                  "斩击": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "突刺": {
+                    "default": 1,
+                    "type": "number"
+                  },
+                  "打击": {
+                    "default": 1,
+                    "type": "number"
+                  }
+                }
+              },
+              "状态效果": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "状态名"
+                },
+                "additionalProperties": {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "强度": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "层数": {
+                      "default": 0,
+                      "type": "number"
+                    }
+                  }
+                }
+              },
+              "技能": {
+                "default": {},
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "description": "技能名"
+                },
+                "additionalProperties": {
+                  "default": {},
+                  "type": "object",
+                  "properties": {
+                    "罪孽": {
+                      "default": "无",
+                      "type": "string"
+                    },
+                    "攻击类型": {
+                      "default": "打击",
+                      "type": "string"
+                    },
+                    "类别": {
+                      "default": "战斗",
+                      "type": "string"
+                    },
+                    "守备类型": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "时机": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "条件": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "基础威力": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "硬币威力": {
+                      "default": [],
+                      "type": "array",
+                      "items": {
+                        "type": "number"
+                      }
+                    },
+                    "攻击等级修正": {
+                      "default": 0,
+                      "type": "number"
+                    },
+                    "攻击容量": {
+                      "default": 1,
+                      "type": "number"
+                    },
+                    "效果": {
+                      "default": "",
+                      "type": "string"
+                    },
+                    "SP消耗": {
+                      "default": 0,
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "交互对象": {
+      "default": {},
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "description": "对象名称"
+      },
+      "additionalProperties": {
+        "default": {},
+        "type": "object",
+        "properties": {
+          "身份": {
+            "default": "未知",
+            "type": "string"
+          },
+          "生理状态": {
+            "default": "健康",
+            "type": "string"
+          },
+          "好感度": {
+            "default": 0,
+            "type": "number"
+          },
+          "服饰": {
+            "default": "默认服饰",
+            "type": "string"
+          },
+          "当前行为": {
+            "default": "无",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
