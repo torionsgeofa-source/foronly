@@ -3,7 +3,7 @@ import App from './App.vue';
 import './global.css';
 import { 绑定技能库, type 技能库接口 } from './engine/units';
 
-async function 等待技能库(超时 = 3000): Promise<技能库接口 | null> {
+async function 等待技能库(超时 = 10000): Promise<技能库接口 | null> {
   try {
     const 结果 = await Promise.race([
       waitGlobalInitialized<技能库接口>('技能库'),
