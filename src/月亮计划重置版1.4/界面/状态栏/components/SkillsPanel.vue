@@ -36,7 +36,13 @@
 import { 罪孽颜色, type 罪孽名 } from '../constants';
 import { 查技能 } from '../技能库';
 
-const props = defineProps<{ 技能: string[] }>();
+const props = defineProps<{ 技能: string[]; 角色?: string }>();
+
+/** 技能归属角色 = 主角名 (取不到或为 {{user}} 时用「主角」) */
+const 角色 = computed(() => {
+  const 名 = props.角色;
+  return 名 && 名 !== '{{user}}' ? 名 : '主角';
+});
 
 interface 技能视图 {
   名称: string;
@@ -54,7 +60,7 @@ interface 技能视图 {
 
 const 技能列表 = computed<技能视图[]>(() =>
   (props.技能 ?? []).map(名称 => {
-    const 定义 = 查技能(名称);
+    const 定义 = 查技能(角色.value, 名称);
     return {
       名称,
       罪孽: 定义?.罪孽 ?? '无',

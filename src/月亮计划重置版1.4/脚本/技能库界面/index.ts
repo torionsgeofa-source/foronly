@@ -2,25 +2,47 @@
  * 技能库界面 (独立脚本)
  *
  * - 负责创建「技能库」悬浮窗与脚本按钮那部分界面逻辑;
- * - 先 `await waitGlobalInitialized('技能库')` 等待核心脚本暴露共享接口, 再挂载;
+ * - 悬浮窗固定定位、可拖动、可关闭, 挂到主界面 body 上 (脚本 iframe 内 `$` 通常等于 parent.$);
+ * - 启动默认隐藏: 通过脚本按钮「技能库」或屏幕角落小浮标开合;
  * - Vue / pinia / App.vue 等重依赖只存在于本脚本, 不会影响核心脚本的初始化。
  */
 import { teleportStyle } from '@util/script';
 import 技能库设置界面 from '../../界面/技能库/App.vue';
 
-function 挂载悬浮窗(): void {
-  const { destroy } = teleportStyle();
+const 窗口Id = 'moon-skill-lib-window';
+const 浮标Id = 'moon-skill-lib-toggle';
 
-  // 悬浮窗外壳（固定定位、可拖动、可关闭），挂到主界面 body 上
-  const $窗 = $('<div id="moon-skill-lib-window">')
+/** 取主界面 document: 优先 parent.document, 跨域等异常时退回自身 document */
+function 取主文档(): Document {
+  try {
+    const 父 = window.parent as Window | null;
+    if (父 && 父 !== window && 父.document?.body) return 父.document;
+  } catch (e) {
+    console.warn('[技能库界面] 无法访问主界面 document, 退回脚本自身文档', e);
+  }
+  return document;
+}
+
+function 挂载悬浮窗(): void {
+  const 主文档 = 取主文档();
+  const $主body = $(主文档.body);
+  const { destroy } = teleportStyle(主文档.head);
+
+  // 避免热重载/重复挂载产生多个窗口
+  $(`#${窗口Id}, #${浮标Id}`, 主文档).remove();
+
+  const 视口宽 = (主文档.defaultView ?? window).innerWidth || 1024;
+
+  const $窗 = $('<div>')
+    .attr('id', 窗口Id)
     .css({
       position: 'fixed',
       top: '90px',
-      right: '24px',
-      width: '580px',
-      height: '640px',
+      left: `${Math.max(16, 视口宽 - 620)}px`,
+      width: '600px',
+      height: '660px',
       display: 'none',
-      zIndex: 2147483000,
+      zIndex: 2147483600,
       borderRadius: '10px',
       overflow: 'hidden',
       background: '#100d10',
@@ -28,7 +50,7 @@ function 挂载悬浮窗(): void {
       boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
       color: '#e8e0e4',
     })
-    .appendTo($('body'));
+    .appendTo($主body);
 
   const $标题栏 = $('<div>')
     .css({
@@ -44,6 +66,7 @@ function 挂载悬浮窗(): void {
       fontSize: '13px',
       letterSpacing: '1px',
       userSelect: 'none',
+      touchAction: 'none',
     })
     .appendTo($窗);
   $标题栏.append($('<span>').text('月亮计划 · 技能库'));
@@ -64,36 +87,95 @@ function 挂载悬浮窗(): void {
 
   const $内容 = $('<div>').css({ width: '100%', height: 'calc(100% - 37px)', overflow: 'auto' }).appendTo($窗);
 
+  // 自实现拖动 (不依赖 jQuery UI): 标题栏 pointer 事件 + 指针捕获
+  const 标题 = $标题栏[0];
+  let 拖动中 = false;
+  let 起点X = 0;
+  let 起点Y = 0;
+  let 起始左 = 0;
+  let 起始上 = 0;
+
+  标题.addEventListener('pointerdown', 事件 => {
+    const 事件对象 = 事件 as PointerEvent;
+    if ((事件对象.target as HTMLElement | null)?.closest?.('button')) return;
+    拖动中 = true;
+    const 矩形 = $窗[0].getBoundingClientRect();
+    起始左 = 矩形.left;
+    起始上 = 矩形.top;
+    起点X = 事件对象.clientX;
+    起点Y = 事件对象.clientY;
+    try {
+      标题.setPointerCapture?.(事件对象.pointerId);
+    } catch (e) {
+      console.warn('[技能库界面] 设置指针捕获失败', e);
+    }
+    事件对象.preventDefault();
+  });
+  标题.addEventListener('pointermove', 事件 => {
+    if (!拖动中) return;
+    const 事件对象 = 事件 as PointerEvent;
+    $窗.css({
+      left: `${起始左 + (事件对象.clientX - 起点X)}px`,
+      top: `${起始上 + (事件对象.clientY - 起点Y)}px`,
+      right: 'auto',
+    });
+  });
+  const 结束拖动 = (事件: Event) => {
+    if (!拖动中) return;
+    拖动中 = false;
+    try {
+      标题.releasePointerCapture?.((事件 as PointerEvent).pointerId);
+    } catch (e) {
+      console.warn('[技能库界面] 释放指针捕获失败', e);
+    }
+  };
+  标题.addEventListener('pointerup', 结束拖动);
+  标题.addEventListener('pointercancel', 结束拖动);
+
   const app = createApp(技能库设置界面).use(createPinia());
   app.mount($内容[0]);
 
-  try {
-    const 可拖 = ($窗 as unknown as { draggable?: (opt: unknown) => void }).draggable;
-    if (typeof 可拖 === 'function') 可拖.call($窗, { handle: $标题栏[0] });
-  } catch (e) {
-    console.warn('[技能库界面] 悬浮窗拖动不可用', e);
-  }
-
   const 切换 = () => $窗.toggle();
+
+  // 屏幕角落小浮标: 始终提供, 作为脚本按钮不可用时的兜底
+  const $浮标 = $('<button type="button">')
+    .attr('id', 浮标Id)
+    .text('技能库')
+    .css({
+      position: 'fixed',
+      right: '14px',
+      bottom: '14px',
+      zIndex: 2147483600,
+      padding: '6px 12px',
+      border: '1px solid #d9a441',
+      borderRadius: '14px',
+      background: 'rgba(27, 22, 27, 0.9)',
+      color: '#d9a441',
+      fontFamily: 'inherit',
+      fontSize: '12px',
+      letterSpacing: '1px',
+      cursor: 'pointer',
+      boxShadow: '0 4px 14px rgba(0, 0, 0, 0.5)',
+    })
+    .on('click', 切换)
+    .appendTo($主body);
 
   try {
     replaceScriptButtons([{ name: '技能库', visible: true }]);
     eventOn(getButtonEvent('技能库'), 切换);
   } catch (e) {
-    console.warn('[技能库界面] 注册按钮失败', e);
+    console.warn('[技能库界面] 注册脚本按钮失败, 已保留角落浮标', e);
   }
 
   $(window).on('pagehide', () => {
     app.unmount();
     $窗.remove();
+    $浮标.remove();
     destroy();
   });
 }
 
-$(() => {
-  errorCatched(async () => {
-    await waitGlobalInitialized('技能库');
-    挂载悬浮窗();
-    console.info('[技能库界面] 已挂载');
-  })();
+$((): void => {
+  errorCatched(() => 挂载悬浮窗())();
+  console.info('[技能库界面] 已挂载');
 });

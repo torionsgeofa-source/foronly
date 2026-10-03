@@ -37,17 +37,24 @@ export interface 技能定义 {
   效果?: string;
   SP消耗?: number;
   effects?: 技能效果[];
+  所属?: string;
 }
 
+/** 角色名 -> (技能名 -> 技能定义) */
+export type 技能库数据 = Record<string, Record<string, 技能定义>>;
+
 export interface 技能库接口 {
-  查(名: string): 技能定义 | undefined;
-  全部(): Record<string, 技能定义>;
-  内存列表(): 技能定义[];
-  增(名: string, 定义: 技能定义): void;
-  改(名: string, 定义: 技能定义): void;
-  删(名: string): void;
+  查(角色: string, 技能名: string): 技能定义 | undefined;
+  全部(): 技能库数据;
+  角色列表(): string[];
+  角色技能(角色: string): Record<string, 技能定义>;
+  增角色(角色: string): void;
+  增(角色: string, 技能名: string, 定义: 技能定义): void;
+  改(角色: string, 技能名: string, 定义: 技能定义): void;
+  删(角色: string, 技能名: string): void;
+  删角色(角色: string): void;
   导入(json: string): void;
-  导出(名?: string): string;
+  导出(角色?: string): string;
   重置(): void;
 }
 

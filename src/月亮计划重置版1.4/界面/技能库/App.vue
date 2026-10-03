@@ -2,19 +2,19 @@
   <div class="skill-lib">
     <div class="lib-header">
       <b>技能库</b>
-      <span class="lib-sub">默认库 + 全局覆盖 · 共 {{ 列表.length }} 项</span>
+      <span class="lib-sub">按角色归属 · 角色 {{ 角色列表.length }} 个 · 当前角色 {{ 技能列表.length }} 项</span>
     </div>
 
     <div class="lib-toolbar">
-      <button class="tbtn primary" @click="新建">＋ 新建技能</button>
-      <button class="tbtn" @click="刷新">刷新</button>
       <button class="tbtn" @click="导出文件()">导出整库</button>
+      <button class="tbtn" :disabled="!当前角色" @click="导出文件(当前角色)">导出当前角色</button>
+      <button class="tbtn" :disabled="!草稿" @click="导出单个技能">导出单个技能</button>
       <button class="tbtn" @click="显示导入 = !显示导入">导入 JSON</button>
-      <button class="tbtn danger" @click="重置库">重置覆盖</button>
+      <button class="tbtn danger" @click="重置库">重置</button>
     </div>
 
     <div v-if="显示导入" class="import-box">
-      <textarea v-model="导入文本" rows="5" placeholder="粘贴「技能名 -> 技能定义」的 JSON 对象；导入将替换整库覆盖层" />
+      <textarea v-model="导入文本" rows="5" placeholder="粘贴「角色 -> 技能名 -> 技能定义」的 JSON 对象（也兼容扁平「技能名 -> 定义」，将归入「通用」）" />
       <div class="import-actions">
         <button class="tbtn primary" :disabled="!导入文本.trim()" @click="执行导入">确认导入</button>
         <button class="tbtn" @click="选择文件">从文件导入</button>
@@ -23,6 +23,28 @@
     </div>
 
     <div class="lib-body">
+      <aside class="lib-roles">
+        <div class="roles-head">
+          <span>角色</span>
+          <button class="tbtn small" @click="新建角色">＋</button>
+        </div>
+        <input v-model="角色关键字" class="filter-input" placeholder="搜索角色" />
+        <div class="list-scroll">
+          <div
+            v-for="角色 in 过滤角色"
+            :key="角色"
+            class="role-item"
+            :class="{ active: 角色 === 当前角色 }"
+            @click="选中角色(角色)"
+          >
+            <span class="role-name">{{ 角色 }}</span>
+            <span class="role-count">{{ 角色技能数(角色) }}</span>
+            <button class="mini-del" title="删除角色" @click.stop="删除角色(角色)">×</button>
+          </div>
+          <div v-if="过滤角色.length === 0" class="list-empty">无角色</div>
+        </div>
+      </aside>
+
       <aside class="lib-list">
         <div class="filters">
           <input v-model="关键字" class="filter-input" placeholder="搜索技能名" />
@@ -31,6 +53,7 @@
             <option v-for="类别 in 类别选项" :key="类别" :value="类别">{{ 类别 }}</option>
           </select>
         </div>
+        <button class="tbtn primary" :disabled="!当前角色" @click="新建">＋ 新建技能</button>
         <div class="list-scroll">
           <button
             v-for="定义 in 过滤列表"
@@ -50,8 +73,8 @@
       <section v-if="草稿" class="lib-editor">
         <div class="editor-title">
           <input v-model="草稿.名称" class="name-input" placeholder="技能名称" />
-          <button class="tbtn primary" :disabled="!草稿.名称.trim()" @click="保存">保存</button>
-          <button class="tbtn" @click="导出文件(草稿.名称)">导出此技能</button>
+          <span class="belong">归属：{{ 当前角色 || '—' }}</span>
+          <button class="tbtn primary" :disabled="!草稿.名称.trim() || !当前角色" @click="保存">保存</button>
           <button class="tbtn danger" @click="删除">删除</button>
         </div>
 
@@ -149,7 +172,9 @@
         </div>
       </section>
 
-      <section v-else class="lib-editor empty-editor">从左侧选择技能，或点击「新建技能」开始编辑。</section>
+      <section v-else class="lib-editor empty-editor">
+        {{ 当前角色 ? '从中间选择技能，或点击「新建技能」开始编辑。' : '请先在左侧选择角色，或点击「＋」新增角色。' }}
+      </section>
     </div>
   </div>
 </template>
@@ -173,7 +198,10 @@ import {
 import { 规范化效果, 解析效果, 序列化效果 } from '../战斗/engine/效果解析';
 
 const 技能库 = ref<技能库接口 | null>(null);
-const 列表 = ref<技能定义[]>([]);
+const 角色列表 = ref<string[]>([]);
+const 当前角色 = ref('');
+const 技能列表 = ref<技能定义[]>([]);
+const 角色关键字 = ref('');
 const 关键字 = ref('');
 const 筛选类别 = ref<'' | 技能类别>('');
 const 草稿 = ref<技能定义 | null>(null);
@@ -181,9 +209,15 @@ const 显示导入 = ref(false);
 const 导入文本 = ref('');
 const 文件输入 = ref<HTMLInputElement | null>(null);
 
+const 过滤角色 = computed(() => {
+  const 词 = 角色关键字.value.trim().toLowerCase();
+  if (!词) return 角色列表.value;
+  return 角色列表.value.filter(角色 => 角色.toLowerCase().includes(词));
+});
+
 const 过滤列表 = computed(() => {
   const 词 = 关键字.value.trim().toLowerCase();
-  return 列表.value.filter(定义 => {
+  return 技能列表.value.filter(定义 => {
     if (筛选类别.value && 定义.类别 !== 筛选类别.value) return false;
     if (词 && !定义.名称.toLowerCase().includes(词)) return false;
     return true;
@@ -202,6 +236,10 @@ const 是被动支援 = computed(() => 草稿.value?.类别 === '被动' || 草�
 const 规范化预览 = computed(() => (是被动支援.value ? 规范化效果(草稿.value?.效果 ?? '') : ''));
 const 效果修复 = computed(() => (是被动支援.value ? 解析效果(草稿.value?.效果 ?? '').修复 : []));
 
+function 角色技能数(角色: string): number {
+  return Object.keys(技能库.value?.角色技能(角色) ?? {}).length;
+}
+
 function 效果文本(硬币: 战斗技能硬币): string {
   return (硬币.命中效果 ?? []).map(序列化效果).join('；');
 }
@@ -213,18 +251,64 @@ function 写入命中效果(下标: number, 文本: string): void {
   草稿.value = { ...草稿.value!, 硬币: [...当前] };
 }
 
-function 刷新(): void {
+function 刷新角色(保留当前 = true): void {
   if (!技能库.value) return;
-  列表.value = 技能库.value.内存列表();
+  角色列表.value = 技能库.value.角色列表();
+  if (!保留当前 || !角色列表.value.includes(当前角色.value)) {
+    当前角色.value = 角色列表.value[0] ?? '';
+  }
+  刷新技能();
+}
+
+function 刷新技能(): void {
+  技能列表.value = 当前角色.value ? Object.values(技能库.value?.角色技能(当前角色.value) ?? {}) : [];
+}
+
+function 刷新(): void {
+  刷新角色(false);
+}
+
+function 选中角色(角色: string): void {
+  当前角色.value = 角色;
+  草稿.value = null;
+  刷新技能();
+}
+
+function 新建角色(): void {
+  if (!技能库.value) return;
+  const 名 = (prompt('请输入新角色名') ?? '').trim();
+  if (!名) return;
+  if (角色列表.value.includes(名)) {
+    toastr.info(`角色「${名}」已存在`, '技能库');
+    选中角色(名);
+    return;
+  }
+  技能库.value.增角色(名);
+  刷新角色(false);
+  选中角色(名);
+  toastr.success(`已新增角色「${名}」`, '技能库');
+}
+
+function 删除角色(角色: string): void {
+  if (!技能库.value) return;
+  if (!confirm(`确定删除角色「${角色}」及其名下全部技能吗？（内置角色可重置恢复）`)) return;
+  技能库.value.删角色(角色);
+  if (草稿.value?.所属 === 角色) 草稿.value = null;
+  刷新();
+  toastr.info(`已删除角色「${角色}」`, '技能库');
 }
 
 function 选中(名称: string): void {
-  const 定义 = 技能库.value?.查(名称);
+  const 定义 = 技能库.value?.查(当前角色.value, 名称);
   if (定义) 草稿.value = 建草稿(定义);
 }
 
 function 新建(): void {
-  草稿.value = 建草稿();
+  if (!当前角色.value) {
+    toastr.warning('请先选择或新增一个角色', '技能库');
+    return;
+  }
+  草稿.value = { ...建草稿(), 所属: 当前角色.value };
 }
 
 function 添加硬币(): void {
@@ -240,29 +324,30 @@ function 删除硬币(下标: number): void {
 
 function 保存(): void {
   const 定义 = 草稿.value;
-  if (!定义 || !定义.名称.trim() || !技能库.value) return;
+  if (!定义 || !定义.名称.trim() || !技能库.value || !当前角色.value) return;
   const 硬币 = 规范化硬币(定义);
   const 结果: 技能定义 = {
     ...定义,
     名称: 定义.名称.trim(),
+    所属: 当前角色.value,
     硬币: 是拼点技能.value ? 硬币 : undefined,
     硬币威力: 是拼点技能.value ? 硬币.map(项 => 项.威力) : undefined,
     硬币类型: 是拼点技能.value ? 硬币.map(项 => 项.类型) : undefined,
   };
-  if (技能库.value.查(结果.名称)) 技能库.value.改(结果.名称, 结果);
-  else 技能库.value.增(结果.名称, 结果);
+  if (技能库.value.查(当前角色.value, 结果.名称)) 技能库.value.改(当前角色.value, 结果.名称, 结果);
+  else 技能库.value.增(当前角色.value, 结果.名称, 结果);
   草稿.value = 建草稿(结果);
-  刷新();
-  toastr.success(`已保存技能「${结果.名称}」`, '技能库');
+  刷新技能();
+  toastr.success(`已保存技能「${结果.名称}」到「${当前角色.value}」`, '技能库');
 }
 
 function 删除(): void {
   const 定义 = 草稿.value;
-  if (!定义 || !技能库.value) return;
+  if (!定义 || !技能库.value || !当前角色.value) return;
   if (!confirm(`确定删除技能「${定义.名称}」吗？（内置技能可重置恢复）`)) return;
-  技能库.value.删(定义.名称);
+  技能库.value.删(当前角色.value, 定义.名称);
   草稿.value = null;
-  刷新();
+  刷新技能();
   toastr.info(`已删除技能「${定义.名称}」`, '技能库');
 }
 
@@ -270,6 +355,7 @@ function 重置库(): void {
   if (!技能库.value) return;
   if (!confirm('确定清空所有覆盖改动，恢复内置默认库吗？')) return;
   技能库.value.重置();
+  当前角色.value = '';
   草稿.value = null;
   刷新();
   toastr.info('技能库已重置为内置默认库', '技能库');
@@ -303,25 +389,41 @@ function 读文件(事件: Event): void {
   读取器.readAsText(文件, 'utf-8');
 }
 
-function 导出文件(名称?: string): void {
-  if (!技能库.value) return;
-  const 文本 = 技能库.value.导出(名称);
-  if (!文本) {
-    toastr.warning('没有可导出的技能', '技能库');
-    return;
-  }
-  const 文件名 = 名称 ? `${名称}.json` : '技能库.json';
+function 下载(文本: string, 文件名: string): void {
   const 链接 = document.createElement('a');
   链接.href = URL.createObjectURL(new Blob([文本], { type: 'application/json' }));
   链接.download = 文件名;
   链接.click();
   URL.revokeObjectURL(链接.href);
   void navigator.clipboard?.writeText(文本).catch(() => undefined);
+}
+
+function 导出文件(角色?: string): void {
+  if (!技能库.value) return;
+  const 文本 = 技能库.value.导出(角色);
+  if (!文本 || 文本 === '{}') {
+    toastr.warning('没有可导出的技能', '技能库');
+    return;
+  }
+  const 文件名 = 角色 ? `${角色}.json` : '技能库.json';
+  下载(文本, 文件名);
   toastr.success(`已导出 ${文件名}（并尝试复制到剪贴板）`, '技能库');
 }
 
+function 导出单个技能(): void {
+  if (!草稿.value) return;
+  const 文本 = JSON.stringify({ ...草稿.value, 所属: 当前角色.value }, null, 2);
+  下载(文本, `${草稿.value.名称 || '技能'}.json`);
+  toastr.success('已导出单个技能（并尝试复制到剪贴板）', '技能库');
+}
+
 onMounted(async () => {
-  技能库.value = await waitGlobalInitialized<技能库接口>('技能库');
+  try {
+    技能库.value = await waitGlobalInitialized<技能库接口>('技能库');
+  } catch (e) {
+    console.warn('[技能库] 未就绪，界面功能不可用', e);
+    return;
+  }
   刷新();
 });
 </script>
@@ -389,8 +491,13 @@ onMounted(async () => {
   padding: 2px 8px;
 }
 
-.tbtn:hover {
+.tbtn:hover:not(:disabled) {
   background: rgba(217, 164, 65, 0.12);
+}
+
+.tbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .import-box {
@@ -425,11 +532,12 @@ onMounted(async () => {
 
 .lib-body {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 150px 210px 1fr;
   gap: 10px;
-  min-height: 300px;
+  min-height: 320px;
 }
 
+.lib-roles,
 .lib-list {
   display: flex;
   flex-direction: column;
@@ -438,6 +546,62 @@ onMounted(async () => {
   border-radius: 7px;
   padding: 8px;
   background: rgba(0, 0, 0, 0.2);
+}
+
+.roles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--b-muted, #9a8f98);
+  letter-spacing: 1px;
+}
+
+.role-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--b-text, #e8e0e4);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.role-item:hover {
+  background: rgba(217, 164, 65, 0.08);
+}
+
+.role-item.active {
+  border-color: var(--b-accent-2, #d9a441);
+  background: rgba(217, 164, 65, 0.12);
+}
+
+.role-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-count {
+  font-size: 10px;
+  color: var(--b-muted, #9a8f98);
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-del {
+  border: none;
+  background: transparent;
+  color: #e88a7c;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
 }
 
 .filters {
@@ -550,6 +714,7 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   color: var(--b-muted, #9a8f98);
+  text-align: center;
 }
 
 .editor-title {
@@ -562,6 +727,12 @@ onMounted(async () => {
   flex: 1;
   font-size: 14px;
   font-weight: 700;
+}
+
+.belong {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--b-muted, #9a8f98);
 }
 
 .field-grid {
@@ -641,7 +812,7 @@ onMounted(async () => {
   font-size: 11px;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 760px) {
   .lib-body {
     grid-template-columns: 1fr;
   }

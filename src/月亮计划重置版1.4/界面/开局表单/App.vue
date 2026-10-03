@@ -161,7 +161,7 @@ import {
   type 装备槽表单,
 } from './types';
 import { 规范化效果, 规范化装备效果, 解析装备效果 } from '../战斗/engine/效果解析';
-import { 查技能, 写入技能, type 技能定义 } from './技能库';
+import { 查技能, 写入技能, 共享技能库, type 技能定义 } from './技能库';
 
 const store = useDataStore();
 const data = store.data;
@@ -295,9 +295,17 @@ function 生成技能表单(名称: string, 值?: Record<string, unknown>): 技�
   };
 }
 
+/** 技能归属角色 = 主角名 (取不到或为 {{user}} 时用「主角」) */
+const 主角名 = computed(() => {
+  const 名 = data.玩家状态.基础信息.名称;
+  return 名 && 名 !== '{{user}}' ? 名 : '主角';
+});
+
 function 载入技能(): 技能表单[] {
   const 名称列表 = Array.isArray(data.玩家状态.技能) ? [...data.玩家状态.技能] : [];
-  return 名称列表.map(名 => 生成技能表单(名, 查技能(名) as unknown as Record<string, unknown> | undefined));
+  return 名称列表.map(
+    名 => 生成技能表单(名, 查技能(主角名.value, 名) as unknown as Record<string, unknown> | undefined),
+  );
 }
 
 function 读装备槽(值: unknown): 装备槽表单 {
@@ -331,6 +339,25 @@ const 表单 = reactive<表单数据>({
   当前场景: data.世界状态.当前场景,
   开场情境: '',
   技能: 载入技能(),
+});
+
+// 技能库后台绑定: 晚到且用户尚未编辑时, 用库中定义重新回填技能卡片
+let 技能已回填 = 共享技能库.value !== null;
+let 技能用户已编辑 = false;
+watch(
+  () => 表单.技能,
+  () => {
+    if (!技能已回填) 技能用户已编辑 = true;
+  },
+  { deep: true },
+);
+watch(共享技能库, 库 => {
+  if (!库 || 技能已回填 || 技能用户已编辑) return;
+  const 名称列表 = Array.isArray(data.玩家状态.技能) ? [...data.玩家状态.技能] : [];
+  表单.技能 = 名称列表.map(
+    名 => 生成技能表单(名, 查技能(主角名.value, 名) as unknown as Record<string, unknown> | undefined),
+  );
+  技能已回填 = true;
 });
 
 const 装备生命加成 = computed(() =>
@@ -533,11 +560,12 @@ async function 提交(): Promise<void> {
     data.玩家状态.生命体征.混乱.阈值 = 值.混乱无 ? 0 : 值.混乱阈值;
     data.玩家状态.生命体征.生命值.数值 = -1;
 
+    const 归属角色 = 值.名称 && 值.名称 !== '{{user}}' ? 值.名称 : '主角';
     const 技能名列表: string[] = [];
     let 写入失败 = false;
     for (const 技 of 值.技能) {
       const 定义 = 表单转技能定义(技);
-      if (!写入技能(技.名称, 定义)) 写入失败 = true;
+      if (!写入技能(归属角色, 技.名称, 定义)) 写入失败 = true;
       技能名列表.push(技.名称);
     }
     data.玩家状态.技能 = 技能名列表;

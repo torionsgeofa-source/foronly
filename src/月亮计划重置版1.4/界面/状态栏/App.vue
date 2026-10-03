@@ -25,7 +25,7 @@
 
     <details class="section" :open="展开">
       <summary class="section-title">技能</summary>
-      <SkillsPanel :技能="data.玩家状态.技能" />
+      <SkillsPanel :技能="data.玩家状态.技能" :角色="data.玩家状态.基础信息.名称" />
     </details>
 
     <details class="section" :open="展开">

@@ -1,8 +1,8 @@
 /**
  * 技能库插件 (独立脚本)
  *
- * - 内置一套规范化技能 DB (战斗 / 守备 / 被动 / 支援 / EGO);
- * - 玩家通过 `增 / 改 / 删 / 导入` 的改动写入全局变量 `技能库` 的键 (覆盖层), 读取时按 默认库 + 全局覆盖 合并;
+ * - 内置一套规范化技能 DB (战斗 / 守备 / 被动 / 支援 / EGO), 按「角色 -> 技能名」归属, 内置技能归入「通用」;
+ * - 玩家通过 `增 / 改 / 删 / 删角色 / 导入` 的改动写入全局变量 `技能库` 的覆盖层, 读取时按 默认库 + 全局覆盖 (角色->技能名 粒度) 合并;
  * - 通过 `initializeGlobal('技能库', api)` 向战斗 / 状态栏 / 开局表单等前端界面暴露统一接口。
  *
  * 本插件不依赖任何角色卡 schema 或变量结构, 可被其它卡 / 版本复用。
@@ -56,18 +56,31 @@ export interface 技能定义 {
   效果?: string;
   SP消耗?: number;
   effects?: 技能效果[];
+  /** 冗余记录技能归属角色, 便于导出单条时保留归属 */
+  所属?: string;
 }
 
-/** 暴露给其它前端界面 / 脚本的共享接口 */
+/**
+ * 技能库数据: 角色名 -> (技能名 -> 技能定义)。
+ * 角色名即"目录", 技能是其中的"书页"; 内置技能统一归属「通用」。
+ */
+export type 技能库数据 = Record<string, Record<string, 技能定义>>;
+
+/** 暴露给其它前端界面 / 脚本的共享接口 (按角色归属) */
 export interface 技能库接口 {
-  查(名: string): 技能定义 | undefined;
-  全部(): Record<string, 技能定义>;
-  内存列表(): 技能定义[];
-  增(名: string, 定义: 技能定义): void;
-  改(名: string, 定义: 技能定义): void;
-  删(名: string): void;
+  /** 查技能; 角色未命中时回退到「通用」 */
+  查(角色: string, 技能名: string): 技能定义 | undefined;
+  全部(): 技能库数据;
+  角色列表(): string[];
+  角色技能(角色: string): Record<string, 技能定义>;
+  增角色(角色: string): void;
+  增(角色: string, 技能名: string, 定义: 技能定义): void;
+  改(角色: string, 技能名: string, 定义: 技能定义): void;
+  删(角色: string, 技能名: string): void;
+  删角色(角色: string): void;
   导入(json: string): void;
-  导出(名?: string): string;
+  /** 不传角色=导出整库; 传=导出该角色 */
+  导出(角色?: string): string;
   重置(): void;
 }
 
@@ -109,7 +122,9 @@ function 战(
 
 const 施加 = (状态: string, 层数: number, 强度 = 0): 技能效果 => ({ type: '施加状态', 状态, 层数, 强度 });
 
-const 默认技能库: Record<string, 技能定义> = {
+const 通用角色 = '通用';
+
+const 通用技能表: Record<string, 技能定义> = {
   // 战斗 · 斩击
   利刃斩击: 战('利刃斩击', '战斗', '暴怒', '斩击', 4, [币(3), 币(3)], 0),
   血刃: 战('血刃', '战斗', '暴怒', '斩击', 4, [币(3), 币(3, '不可摧毁', [施加('流血', 1, 1)])], 1, 1, { 效果: '命中时施加流血' }),
@@ -294,15 +309,18 @@ const 默认技能库: Record<string, 技能定义> = {
   },
 };
 
+/** 内置默认库: 全部内置技能归属「通用」角色 */
+const 默认技能库: 技能库数据 = { [通用角色]: 通用技能表 };
+
 /* ------------------------------------------------------------------ *
- * 存储: 内置默认库 + 全局变量覆盖层
+ * 存储: 内置默认库 + 全局变量覆盖层 (角色 -> 技能名 粒度)
  * ------------------------------------------------------------------ */
 
 const 存储键 = '技能库';
 
 interface 技能库存储 {
-  覆盖: Record<string, 技能定义>;
-  删除: string[];
+  覆盖: 技能库数据;
+  删除: Record<string, string[]>;
 }
 
 const 全局变量选项 = { type: 'global' } as const;
@@ -316,17 +334,52 @@ function 深拷贝<T>(值: T): T {
   }
 }
 
+function 是技能定义(值: unknown): 值 is 技能定义 {
+  if (!值 || typeof 值 !== 'object' || Array.isArray(值)) return false;
+  const 对象 = 值 as Partial<技能定义>;
+  return typeof 对象.类别 === 'string' || typeof 对象.名称 === 'string';
+}
+
+/** 兼容旧版扁平结构 (技能名 -> 定义), 将其归入「通用」 */
+function 规范化覆盖(原始: unknown): 技能库数据 {
+  if (!原始 || typeof 原始 !== 'object' || Array.isArray(原始)) return {};
+  const 结果: 技能库数据 = {};
+  for (const [键, 值] of Object.entries(原始 as Record<string, unknown>)) {
+    if (是技能定义(值)) {
+      (结果[通用角色] ??= {})[键] = 值;
+    } else if (值 && typeof 值 === 'object' && !Array.isArray(值)) {
+      const 技能表: Record<string, 技能定义> = {};
+      for (const [名, 定义] of Object.entries(值 as Record<string, unknown>)) {
+        if (是技能定义(定义)) 技能表[名] = 定义;
+      }
+      结果[键] = 技能表;
+    }
+  }
+  return 结果;
+}
+
+/** 兼容旧版删除结构 (技能名[]), 将其归入「通用」 */
+function 规范化删除(原始: unknown): Record<string, string[]> {
+  if (Array.isArray(原始)) return { [通用角色]: 原始.filter(项 => typeof 项 === 'string') };
+  if (!原始 || typeof 原始 !== 'object') return {};
+  const 结果: Record<string, string[]> = {};
+  for (const [角色, 值] of Object.entries(原始 as Record<string, unknown>)) {
+    if (Array.isArray(值)) 结果[角色] = 值.filter(项 => typeof 项 === 'string') as string[];
+  }
+  return 结果;
+}
+
 function 读取存储(): 技能库存储 {
   try {
     const 全局 = getVariables(全局变量选项) ?? {};
-    const 原始 = (全局 as Record<string, unknown>)[存储键] as Partial<技能库存储> | undefined;
+    const 原始 = (全局 as Record<string, unknown>)[存储键] as Record<string, unknown> | undefined;
     return {
-      覆盖: 原始 && typeof 原始.覆盖 === 'object' && 原始.覆盖 ? (原始.覆盖 as Record<string, 技能定义>) : {},
-      删除: 原始 && Array.isArray(原始.删除) ? (原始.删除 as string[]) : [],
+      覆盖: 规范化覆盖(原始?.覆盖),
+      删除: 规范化删除(原始?.删除),
     };
   } catch (错误) {
     console.warn('[技能库] 读取全局变量失败, 使用空覆盖层:', 错误);
-    return { 覆盖: {}, 删除: [] };
+    return { 覆盖: {}, 删除: {} };
   }
 }
 
@@ -341,20 +394,26 @@ function 保存(): void {
   }
 }
 
-/** 默认库 + 全局覆盖 (删除项被剔除) */
-function 合并(): Record<string, 技能定义> {
-  const 结果: Record<string, 技能定义> = {};
-  for (const [名, 定义] of Object.entries(默认技能库)) {
-    if (!存储.删除.includes(名)) 结果[名] = { ...定义, 名称: 名 };
+/** 默认库 + 全局覆盖 (删除项被剔除); 覆盖到 角色->技能名 粒度 */
+function 合并(): 技能库数据 {
+  const 结果: 技能库数据 = {};
+  const 写入 = (角色: string, 名: string, 定义: 技能定义) => {
+    if ((存储.删除[角色] ?? []).includes(名)) return;
+    (结果[角色] ??= {})[名] = { ...定义, 名称: 名, 所属: 角色 };
+  };
+  for (const [角色, 技能表] of Object.entries(默认技能库)) {
+    for (const [名, 定义] of Object.entries(技能表)) 写入(角色, 名, 定义);
   }
-  for (const [名, 定义] of Object.entries(存储.覆盖)) {
-    if (!存储.删除.includes(名)) 结果[名] = { ...定义, 名称: 名 };
+  // 覆盖中新增的空角色也需出现在列表里
+  for (const 角色 of Object.keys(存储.覆盖)) 结果[角色] ??= {};
+  for (const [角色, 技能表] of Object.entries(存储.覆盖)) {
+    for (const [名, 定义] of Object.entries(技能表)) 写入(角色, 名, 定义);
   }
   return 结果;
 }
 
-function 是内置(名: string): boolean {
-  return Object.prototype.hasOwnProperty.call(默认技能库, 名);
+function 是内置(角色: string, 名: string): boolean {
+  return Object.prototype.hasOwnProperty.call(默认技能库[角色] ?? {}, 名);
 }
 
 /* ------------------------------------------------------------------ *
@@ -362,71 +421,111 @@ function 是内置(名: string): boolean {
  * ------------------------------------------------------------------ */
 
 export const 技能库API: 技能库接口 = {
-  查: 名 => {
-    const 定义 = 合并()[名];
+  查: (角色, 技能名) => {
+    const 库 = 合并();
+    const 定义 = 库[角色]?.[技能名] ?? 库[通用角色]?.[技能名];
     return 定义 ? 深拷贝(定义) : undefined;
   },
   全部: () => 深拷贝(合并()),
-  内存列表: () =>
-    Object.values(合并())
-      .map(定义 => 深拷贝(定义))
-      .sort((甲, 乙) => 甲.名称.localeCompare(乙.名称, 'zh-Hans-CN')),
-  增: (名, 定义) => {
-    if (!名) return;
-    存储.覆盖[名] = { ...深拷贝(定义), 名称: 名 };
-    存储.删除 = 存储.删除.filter(项 => 项 !== 名);
+  角色列表: () => Object.keys(合并()).sort((甲, 乙) => 甲.localeCompare(乙, 'zh-Hans-CN')),
+  角色技能: 角色 => 深拷贝(合并()[角色] ?? {}),
+  增角色: 角色 => {
+    if (!角色) return;
+    存储.覆盖[角色] ??= {};
+    delete 存储.删除[角色];
     保存();
   },
-  改: (名, 定义) => {
-    if (!名) return;
-    存储.覆盖[名] = { ...深拷贝(定义), 名称: 名 };
-    存储.删除 = 存储.删除.filter(项 => 项 !== 名);
+  增: (角色, 技能名, 定义) => {
+    if (!角色 || !技能名) return;
+    (存储.覆盖[角色] ??= {})[技能名] = { ...深拷贝(定义), 名称: 技能名, 所属: 角色 };
+    const 删除项 = (存储.删除[角色] ?? []).filter(名 => 名 !== 技能名);
+    if (删除项.length) 存储.删除[角色] = 删除项;
+    else delete 存储.删除[角色];
     保存();
   },
-  删: 名 => {
-    delete 存储.覆盖[名];
-    if (是内置(名) && !存储.删除.includes(名)) 存储.删除.push(名);
+  改: (角色, 技能名, 定义) => {
+    if (!角色 || !技能名) return;
+    (存储.覆盖[角色] ??= {})[技能名] = { ...深拷贝(定义), 名称: 技能名, 所属: 角色 };
+    const 删除项 = (存储.删除[角色] ?? []).filter(名 => 名 !== 技能名);
+    if (删除项.length) 存储.删除[角色] = 删除项;
+    else delete 存储.删除[角色];
+    保存();
+  },
+  删: (角色, 技能名) => {
+    const 技能表 = 存储.覆盖[角色];
+    if (技能表) {
+      delete 技能表[技能名];
+      if (Object.keys(技能表).length === 0) delete 存储.覆盖[角色];
+    }
+    if (是内置(角色, 技能名)) {
+      const 列表 = (存储.删除[角色] ??= []);
+      if (!列表.includes(技能名)) 列表.push(技能名);
+    }
+    保存();
+  },
+  删角色: 角色 => {
+    delete 存储.覆盖[角色];
+    const 内置 = Object.keys(默认技能库[角色] ?? {});
+    if (内置.length > 0) {
+      const 列表 = (存储.删除[角色] ??= []);
+      for (const 名 of 内置) if (!列表.includes(名)) 列表.push(名);
+    }
     保存();
   },
   导入: json => {
     const 数据 = 解析导入(json);
     存储.覆盖 = 数据;
-    存储.删除 = Object.keys(默认技能库).filter(名 => !(名 in 数据));
+    const 删除: Record<string, string[]> = {};
+    for (const [角色, 技能表] of Object.entries(默认技能库)) {
+      const 缺失 = Object.keys(技能表).filter(名 => !(数据[角色]?.[名]));
+      if (缺失.length > 0) 删除[角色] = 缺失;
+    }
+    存储.删除 = 删除;
     保存();
   },
-  导出: 名 => {
-    if (名) {
-      const 定义 = 合并()[名];
-      return 定义 ? JSON.stringify(定义, null, 2) : '';
-    }
+  导出: 角色 => {
+    if (角色) return JSON.stringify(合并()[角色] ?? {}, null, 2);
     return JSON.stringify(合并(), null, 2);
   },
   重置: () => {
-    存储 = { 覆盖: {}, 删除: [] };
+    存储 = { 覆盖: {}, 删除: {} };
     保存();
   },
 };
 
 /* 立即向全局暴露共享接口, 使其不依赖本文件后面的任何重代码 */
 initializeGlobal('技能库', 技能库API);
-console.info('[技能库] 已共享全局接口, 技能数:', Object.keys(技能库API.全部()).length);
+{
+  const 库 = 技能库API.全部();
+  const 角色数 = Object.keys(库).length;
+  const 技能数 = Object.values(库).reduce((和, 表) => 和 + Object.keys(表).length, 0);
+  console.info('[技能库] 已共享全局接口, 角色数:', 角色数, '技能数:', 技能数);
+}
 
-function 解析导入(json: string): Record<string, 技能定义> {
+function 解析导入(json: string): 技能库数据 {
   const 解析 = JSON.parse(json) as unknown;
   if (!解析 || typeof 解析 !== 'object' || Array.isArray(解析)) {
-    throw Error('技能库 JSON 应为「技能名 -> 技能定义」的对象');
+    throw Error('技能库 JSON 应为「角色 -> 技能名 -> 技能定义」的对象');
   }
-  const 结果: Record<string, 技能定义> = {};
-  for (const [名, 定义] of Object.entries(解析 as Record<string, unknown>)) {
-    if (!定义 || typeof 定义 !== 'object' || Array.isArray(定义)) {
-      throw Error(`技能「${名}」的定义不是对象`);
+  const 结果: 技能库数据 = {};
+  for (const [键, 值] of Object.entries(解析 as Record<string, unknown>)) {
+    if (是技能定义(值)) {
+      const 对象 = 值 as Partial<技能定义>;
+      (结果[通用角色] ??= {})[键] = { ...对象, 名称: 键, 类别: 对象.类别 ?? '战斗', 所属: 对象.所属 ?? 通用角色 };
+      continue;
     }
-    const 对象 = 定义 as Partial<技能定义>;
-    结果[名] = {
-      ...对象,
-      名称: 名,
-      类别: 对象.类别 ?? '战斗',
-    };
+    if (!值 || typeof 值 !== 'object' || Array.isArray(值)) {
+      throw Error(`角色「${键}」的技能表不是对象`);
+    }
+    const 技能表: Record<string, 技能定义> = {};
+    for (const [名, 定义] of Object.entries(值 as Record<string, unknown>)) {
+      if (!定义 || typeof 定义 !== 'object' || Array.isArray(定义)) {
+        throw Error(`技能「${键}/${名}」的定义不是对象`);
+      }
+      const 对象 = 定义 as Partial<技能定义>;
+      技能表[名] = { ...对象, 名称: 名, 类别: 对象.类别 ?? '战斗', 所属: 对象.所属 ?? 键 };
+    }
+    结果[键] = 技能表;
   }
   return 结果;
 }
