@@ -6,9 +6,11 @@
  * - 通过 `initializeGlobal('技能库', api)` 向战斗 / 状态栏 / 开局表单等前端界面暴露统一接口。
  *
  * 本插件不依赖任何角色卡 schema 或变量结构, 可被其它卡 / 版本复用。
+ *
+ * 为保证共享接口一定初始化成功, 本文件是"纯核心": 不含任何 Vue / pinia /
+ * App.vue / 界面目录 / @util/script 的静态 import, 也不含任何外部依赖。
+ * 悬浮窗等界面逻辑已拆分到独立脚本 `脚本\技能库界面\index.ts`。
  */
-import { teleportStyle } from '@util/script';
-import 技能库设置界面 from '../../界面/技能库/App.vue';
 
 /* ------------------------------------------------------------------ *
  * 类型 (与 engine/types.ts 的 技能 / 模板 结构保持一致)
@@ -305,6 +307,15 @@ interface 技能库存储 {
 
 const 全局变量选项 = { type: 'global' } as const;
 
+/** 零依赖深拷贝: 优先结构化克隆, 退化到 JSON 拷贝 (技能定义均为纯数据) */
+function 深拷贝<T>(值: T): T {
+  try {
+    return structuredClone(值);
+  } catch {
+    return JSON.parse(JSON.stringify(值)) as T;
+  }
+}
+
 function 读取存储(): 技能库存储 {
   try {
     const 全局 = getVariables(全局变量选项) ?? {};
@@ -324,7 +335,7 @@ let 存储: 技能库存储 = 读取存储();
 function 保存(): void {
   try {
     const 全局 = getVariables(全局变量选项) ?? {};
-    replaceVariables({ ...全局, [存储键]: klona(存储) }, 全局变量选项);
+    replaceVariables({ ...全局, [存储键]: 深拷贝(存储) }, 全局变量选项);
   } catch (错误) {
     console.error('[技能库] 写入全局变量失败:', 错误);
   }
@@ -353,22 +364,22 @@ function 是内置(名: string): boolean {
 export const 技能库API: 技能库接口 = {
   查: 名 => {
     const 定义 = 合并()[名];
-    return 定义 ? klona(定义) : undefined;
+    return 定义 ? 深拷贝(定义) : undefined;
   },
-  全部: () => klona(合并()),
+  全部: () => 深拷贝(合并()),
   内存列表: () =>
     Object.values(合并())
-      .map(定义 => klona(定义))
+      .map(定义 => 深拷贝(定义))
       .sort((甲, 乙) => 甲.名称.localeCompare(乙.名称, 'zh-Hans-CN')),
   增: (名, 定义) => {
     if (!名) return;
-    存储.覆盖[名] = { ...klona(定义), 名称: 名 };
+    存储.覆盖[名] = { ...深拷贝(定义), 名称: 名 };
     存储.删除 = 存储.删除.filter(项 => 项 !== 名);
     保存();
   },
   改: (名, 定义) => {
     if (!名) return;
-    存储.覆盖[名] = { ...klona(定义), 名称: 名 };
+    存储.覆盖[名] = { ...深拷贝(定义), 名称: 名 };
     存储.删除 = 存储.删除.filter(项 => 项 !== 名);
     保存();
   },
@@ -396,6 +407,10 @@ export const 技能库API: 技能库接口 = {
   },
 };
 
+/* 立即向全局暴露共享接口, 使其不依赖本文件后面的任何重代码 */
+initializeGlobal('技能库', 技能库API);
+console.info('[技能库] 已共享全局接口, 技能数:', Object.keys(技能库API.全部()).length);
+
 function 解析导入(json: string): Record<string, 技能定义> {
   const 解析 = JSON.parse(json) as unknown;
   if (!解析 || typeof 解析 !== 'object' || Array.isArray(解析)) {
@@ -417,92 +432,6 @@ function 解析导入(json: string): Record<string, 技能定义> {
 }
 
 /* ------------------------------------------------------------------ *
- * 入口: 共享接口 + 脚本设置界面
+ * 悬浮窗 / 脚本按钮等界面逻辑已拆分到独立脚本 `脚本\技能库界面\index.ts`。
+ * 本文件保持纯核心, 以保证 initializeGlobal('技能库', api) 一定成功执行。
  * ------------------------------------------------------------------ */
-
-initializeGlobal('技能库', 技能库API);
-console.info('[技能库] 已共享全局接口, 技能数:', Object.keys(技能库API.全部()).length);
-
-$(() => {
-  errorCatched(() => {
-    const { destroy } = teleportStyle();
-
-    // 悬浮窗外壳（固定定位、可拖动、可关闭），挂到主界面 body 上
-    const $窗 = $('<div id="moon-skill-lib-window">')
-      .css({
-        position: 'fixed',
-        top: '90px',
-        right: '24px',
-        width: '580px',
-        height: '640px',
-        display: 'none',
-        zIndex: 2147483000,
-        borderRadius: '10px',
-        overflow: 'hidden',
-        background: '#100d10',
-        border: '1px solid #3b303b',
-        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.6)',
-        color: '#e8e0e4',
-      })
-      .appendTo($('body'));
-
-    const $标题栏 = $('<div>')
-      .css({
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: '8px',
-        padding: '8px 12px',
-        cursor: 'move',
-        background: '#1b161b',
-        borderBottom: '1px solid #3b303b',
-        color: '#d9a441',
-        fontSize: '13px',
-        letterSpacing: '1px',
-        userSelect: 'none',
-      })
-      .appendTo($窗);
-    $标题栏.append($('<span>').text('月亮计划 · 技能库'));
-    $标题栏.append(
-      $('<button type="button">')
-        .text('✕')
-        .css({
-          cursor: 'pointer',
-          border: '1px solid #3b303b',
-          background: 'transparent',
-          color: '#e88a7c',
-          borderRadius: '4px',
-          padding: '2px 8px',
-          fontFamily: 'inherit',
-        })
-        .on('click', () => $窗.hide()),
-    );
-
-    const $内容 = $('<div>').css({ width: '100%', height: 'calc(100% - 37px)', overflow: 'auto' }).appendTo($窗);
-
-    const app = createApp(技能库设置界面).use(createPinia());
-    app.mount($内容[0]);
-
-    try {
-      const 可拖 = ($窗 as unknown as { draggable?: (opt: unknown) => void }).draggable;
-      if (typeof 可拖 === 'function') 可拖.call($窗, { handle: $标题栏[0] });
-    } catch (e) {
-      console.warn('[技能库] 悬浮窗拖动不可用', e);
-    }
-
-    const 切换 = () => $窗.toggle();
-
-    try {
-      replaceScriptButtons([{ name: '技能库', visible: true }]);
-      eventOn(getButtonEvent('技能库'), 切换);
-    } catch (e) {
-      console.warn('[技能库] 注册按钮失败', e);
-    }
-
-    $(window).on('pagehide', () => {
-      app.unmount();
-      $窗.remove();
-      destroy();
-    });
-  })();
-});
