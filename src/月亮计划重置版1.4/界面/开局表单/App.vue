@@ -99,8 +99,19 @@
           <h2 class="group-title">技能设计</h2>
           <span class="group-count">{{ 表单.技能.length }} 个技能</span>
         </div>
-        <p class="group-hint">从技能库中选择技能名（战斗 / 守备 / 被动 / 支援 / EGO），数量不限。技能的具体数值与效果请在「技能库」设置界面中编辑。</p>
-        <SkillPicker v-model="表单.技能" :技能="技能库列表" />
+        <p class="group-hint">自定义设计技能，数量不限。技能名称必填且不可重复；硬币威力用逗号或空格分隔多枚硬币的数值。被动 / 支援的效果会实时规范化预览。提交后会写入「技能库」，角色变量只保存技能名。</p>
+        <div v-if="表单.技能.length" class="skill-list">
+          <SkillCard
+            v-for="(技, 下标) in 表单.技能"
+            :key="技._id"
+            v-model="表单.技能[下标]"
+            :序号="下标 + 1"
+            :错误="技能错误表[下标] ?? {}"
+            @删除="删除技能(下标)"
+          />
+        </div>
+        <div v-else class="skill-empty">尚未添加技能，可留空直接开始。</div>
+        <button type="button" class="add-skill-btn" @click="添加技能">＋ 添加技能</button>
       </section>
 
       <section class="group">
@@ -135,8 +146,8 @@
 <script setup lang="ts">
 import { useDataStore } from '../store';
 import FormField from './components/FormField.vue';
+import SkillCard from './components/SkillCard.vue';
 import EquipCard from './components/EquipCard.vue';
-import SkillPicker from './components/SkillPicker.vue';
 import {
   性别选项,
   阶层选项,
@@ -144,16 +155,16 @@ import {
   罪孽列表,
   攻击类型列表,
   罪孽颜色,
+  解析硬币威力,
   计算生命上限,
+  type 技能表单,
   type 装备槽表单,
 } from './types';
-import { 规范化装备效果, 解析装备效果 } from '../战斗/engine/效果解析';
-import { 全部技能, type 技能定义 } from './技能库';
+import { 规范化效果, 规范化装备效果, 解析装备效果 } from '../战斗/engine/效果解析';
+import { 查技能, 写入技能, type 技能定义 } from './技能库';
 
 const store = useDataStore();
 const data = store.data;
-
-const 技能库列表 = ref<技能定义[]>(全部技能());
 
 const 装备槽定义 = [
   { 键: '上衣', 标签: '上衣' },
@@ -164,6 +175,29 @@ const 装备槽定义 = [
 ] as const;
 
 type 装备槽键 = (typeof 装备槽定义)[number]['键'];
+
+const 技能校验 = z.object({
+  名称: z.string().trim().min(1, '请填写技能名称').max(40, '技能名称过长'),
+  罪孽: z.string().trim(),
+  攻击类型: z.string().trim(),
+  类别: z.string().trim(),
+  时机: z.string().trim(),
+  条件: z.string().trim(),
+  守备类型: z.string().trim(),
+  基础威力: z.coerce.number(),
+  硬币威力: z.string().transform((文本, ctx) => {
+    const 解析 = 解析硬币威力(文本);
+    if (解析.错误) {
+      ctx.addIssue({ code: 'custom', message: 解析.错误 });
+      return z.NEVER;
+    }
+    return 解析.列表;
+  }),
+  攻击等级修正: z.coerce.number().min(-8, '攻击等级修正需在 -8 ~ +8').max(8, '攻击等级修正需在 -8 ~ +8'),
+  攻击容量: z.coerce.number().int('攻击容量需为整数').min(1, '攻击容量需 ≥1'),
+  SP消耗: z.coerce.number().min(0, 'SP消耗需 ≥0'),
+  效果: z.string().trim(),
+});
 
 const 装备槽校验 = z.object({
   名称: z.string().trim(),
@@ -188,18 +222,20 @@ const 表单校验 = z.object({
   当前地点: z.string().trim(),
   当前场景: z.string().trim(),
   开场情境: z.string().trim(),
-  技能: z.array(z.string().trim()).superRefine((列表, ctx) => {
-    const 已见 = new Set<string>();
-    列表.forEach((名, 下标) => {
-      if (!名) return;
-      if (已见.has(名)) {
-        ctx.addIssue({ code: 'custom', message: `技能名「${名}」重复`, path: [下标] });
+  技能: z.array(技能校验).superRefine((列表, ctx) => {
+    const 已见 = new Map<string, number>();
+    列表.forEach((技, 下标) => {
+      if (!技.名称) return;
+      if (已见.has(技.名称)) {
+        ctx.addIssue({ code: 'custom', message: `技能名称「${技.名称}」重复`, path: [下标, '名称'] });
       } else {
-        已见.add(名);
+        已见.set(技.名称, 下标);
       }
     });
   }),
 });
+
+type 技能输出 = z.output<typeof 技能校验>;
 
 interface 表单数据 {
   名称: string;
@@ -219,7 +255,7 @@ interface 表单数据 {
   当前地点: string;
   当前场景: string;
   开场情境: string;
-  技能: string[];
+  技能: 技能表单[];
 }
 
 const 提交中 = ref(false);
@@ -235,6 +271,33 @@ function 去宏(文本: string): string {
   } catch {
     return 文本;
   }
+}
+
+let 技能序号 = 0;
+
+function 生成技能表单(名称: string, 值?: Record<string, unknown>): 技能表单 {
+  const 类别 = (值?.类别 as string) || '战斗';
+  return {
+    _id: ++技能序号,
+    名称,
+    罪孽: (值?.罪孽 as string) || '无',
+    攻击类型: (值?.攻击类型 as string) || '打击',
+    类别,
+    时机: (值?.时机 as string) || '',
+    条件: (值?.条件 as string) || '',
+    守备类型: 类别 === '守备' ? ((值?.守备类型 as string) || '闪避') : '',
+    基础威力: String(值?.基础威力 ?? 0),
+    硬币威力: Array.isArray(值?.硬币威力) ? (值.硬币威力 as number[]).join(', ') : '',
+    攻击等级修正: String(值?.攻击等级修正 ?? 0),
+    攻击容量: String(值?.攻击容量 ?? 1),
+    SP消耗: String(值?.SP消耗 ?? 0),
+    效果: (值?.效果 as string) || '',
+  };
+}
+
+function 载入技能(): 技能表单[] {
+  const 名称列表 = Array.isArray(data.玩家状态.技能) ? [...data.玩家状态.技能] : [];
+  return 名称列表.map(名 => 生成技能表单(名, 查技能(名) as unknown as Record<string, unknown> | undefined));
 }
 
 function 读装备槽(值: unknown): 装备槽表单 {
@@ -267,7 +330,7 @@ const 表单 = reactive<表单数据>({
   当前地点: data.世界状态.当前地点,
   当前场景: data.世界状态.当前场景,
   开场情境: '',
-  技能: Array.isArray(data.玩家状态.技能) ? [...data.玩家状态.技能] : [],
+  技能: 载入技能(),
 });
 
 const 装备生命加成 = computed(() =>
@@ -288,6 +351,14 @@ const 生命表展示 = computed(() =>
   })),
 );
 
+function 添加技能(): void {
+  表单.技能.push(生成技能表单(''));
+}
+
+function 删除技能(下标: number): void {
+  表单.技能.splice(下标, 1);
+}
+
 function 字段错误(键: '名称' | '等级'): string {
   const 结果 = 表单校验.shape[键].safeParse(表单[键]);
   return 结果.success ? '' : (z.prettifyError(结果.error).split('\n').pop() ?? '输入有误');
@@ -300,28 +371,56 @@ const 理智错误 = computed(() => {
   return 结果.success ? '' : (z.prettifyError(结果.error).split('\n').pop() ?? '输入有误');
 });
 
-const 技能有错误 = computed(() => {
-  const 已见 = new Set<string>();
-  return 表单.技能.some(名 => {
-    const 键 = 名.trim();
-    if (!键) return false;
-    if (已见.has(键)) return true;
-    已见.add(键);
-    return false;
+const 技能错误表 = computed<Record<string, string>[]>(() => {
+  const 同名计数 = new Map<string, number>();
+  表单.技能.forEach(技 => {
+    const 名 = 技.名称.trim();
+    if (!名) return;
+    同名计数.set(名, (同名计数.get(名) ?? 0) + 1);
+  });
+  return 表单.技能.map(技 => {
+    const 错误: Record<string, string> = {};
+    const 结果 = 技能校验.safeParse(技);
+    if (!结果.success) {
+      for (const 问题 of 结果.error.issues) {
+        const 键 = String(问题.path[0] ?? '');
+        if (键 && !错误[键]) 错误[键] = 问题.message;
+      }
+    }
+    const 名 = 技.名称.trim();
+    if (名 && (同名计数.get(名) ?? 0) > 1) {
+      错误.名称 = `技能名称「${名}」重复`;
+    }
+    return 错误;
   });
 });
+
+const 技能有错误 = computed(() => 技能错误表.value.some(错误 => Object.keys(错误).length > 0));
 
 const 首个错误 = computed(() => {
   if (名称错误.value) return 名称错误.value;
   if (等级错误.value) return 等级错误.value;
   if (理智错误.value) return 理智错误.value;
-  if (技能有错误.value) return '存在重复的技能名';
+  for (const 错误 of 技能错误表.value) {
+    const 值 = Object.values(错误)[0];
+    if (值) return 值;
+  }
   return '';
 });
 
 const 可提交 = computed(
   () => !提交中.value && !已提交.value && 名称错误.value === '' && 等级错误.value === '' && 理智错误.value === '' && !技能有错误.value,
 );
+
+function 构建技能行(技: 技能输出): string {
+  const 硬币 = 技.硬币威力.length ? 技.硬币威力.join(' / ') : '无';
+  const 守备 = 技.类别 === '守备' ? `，守备类型「${技.守备类型 || '无'}」` : '';
+  const 触发 =
+    技.类别 === '被动' || 技.类别 === '支援'
+      ? `，时机「${技.时机 || '未设定'}」${技.条件 ? `，条件「${技.条件}」` : ''}`
+      : '';
+  return `- ${技.名称}：罪孽「${技.罪孽 || '无'}」，攻击类型「${技.攻击类型 || '打击'}」，类别「${技.类别 || '战斗'}」${守备}${触发}，基础威力 ${技.基础威力}，硬币威力 [${硬币}]，攻击等级修正 ${技.攻击等级修正 >= 0 ? '+' : ''}${技.攻击等级修正}，攻击容量 ${技.攻击容量}，SP消耗 ${技.SP消耗}，效果：${技.效果 || '无'}`;
+}
 
 function 装备效果文本(键: 装备槽键): string {
   return 规范化装备效果(表单.装备[键].效果);
@@ -353,7 +452,7 @@ function 构建描述(值: z.output<typeof 表单校验>): string {
     `理智值：${值.理智值}`,
     '',
     '【技能】',
-    值.技能.length ? 值.技能.map(名 => `- ${名}（定义见技能库）`).join('\n') : '无',
+    值.技能.length ? 值.技能.map(构建技能行).join('\n') : '无',
     '',
     '【开局世界坐标】',
     `当前时间：${值.当前时间 || '都市历 984-10-31 15:53'}`,
@@ -365,6 +464,30 @@ function 构建描述(值: z.output<typeof 表单校验>): string {
   }
   行.push('', '以上为玩家角色初始设定与开场情境，请据此铺开开场场景。');
   return 行.join('\n');
+}
+
+function 表单转技能定义(技: 技能输出): 技能定义 {
+  const 是被动支援 = 技.类别 === '被动' || 技.类别 === '支援';
+  const 定义: 技能定义 = {
+    名称: 技.名称,
+    类别: 技.类别 || '战斗',
+    罪孽: 技.罪孽 || '无',
+    攻击类型: 技.攻击类型 || '打击',
+    基础威力: 技.基础威力,
+    硬币威力: [...技.硬币威力],
+    攻击等级修正: 技.攻击等级修正,
+    攻击容量: 技.攻击容量,
+    SP消耗: 技.SP消耗,
+    效果: 是被动支援 ? 规范化效果(技.效果) : 技.效果,
+  };
+  if (技.类别 === '守备') {
+    定义.守备类型 = 技.守备类型 || '闪避';
+  }
+  if (是被动支援) {
+    定义.时机 = 技.时机 || '回合开始时';
+    if (技.条件) 定义.条件 = 技.条件;
+  }
+  return 定义;
 }
 
 async function 提交(): Promise<void> {
@@ -410,7 +533,17 @@ async function 提交(): Promise<void> {
     data.玩家状态.生命体征.混乱.阈值 = 值.混乱无 ? 0 : 值.混乱阈值;
     data.玩家状态.生命体征.生命值.数值 = -1;
 
-    data.玩家状态.技能 = [...值.技能];
+    const 技能名列表: string[] = [];
+    let 写入失败 = false;
+    for (const 技 of 值.技能) {
+      const 定义 = 表单转技能定义(技);
+      if (!写入技能(技.名称, 定义)) 写入失败 = true;
+      技能名列表.push(技.名称);
+    }
+    data.玩家状态.技能 = 技能名列表;
+    if (值.技能.length > 0 && 写入失败) {
+      toastr.warning('技能库未就绪，自定义技能仅保存了名字');
+    }
 
     data.世界状态.当前时间 = 值.当前时间 || '都市历 984-10-31 15:53';
     data.世界状态.当前地点 = 值.当前地点 || '16区后巷，拉·曼却领外围';
