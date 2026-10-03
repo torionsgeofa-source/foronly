@@ -37,7 +37,9 @@ $(() => {
     ensureDomGlobals();
     await waitGlobalInitialized('Mvu');
     绑定技能库(await 等待技能库());
-    await waitUntil(() => _.has(getVariables({ type: 'message', message_id: getCurrentMessageId() }), 'stat_data'));
+    await waitUntil(() => _.has(getVariables({ type: 'message', message_id: getCurrentMessageId() }), 'stat_data'), { timeout: 3000 }).catch(() =>
+      console.warn('[MVU] stat_data 未及时就绪，先以默认值挂载（随后会自动同步）'),
+    );
     createApp(App).use(createPinia()).mount('#app');
     console.info('[状态栏] 已挂载');
   })();
