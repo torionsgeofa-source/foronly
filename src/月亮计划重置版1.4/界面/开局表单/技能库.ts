@@ -1,3 +1,10 @@
+export type 技能效果 =
+  | { type: '施加状态'; 状态: string; 强度?: number; 层数?: number }
+  | { type: '调整数值'; 数值: { 生命?: number; SP?: number; 攻击等级?: number; 防御等级?: number } }
+  | { type: '震颤引爆' }
+  | { type: '获得护盾'; 数值: number }
+  | { type: '条件增伤'; 条件: string; 数值: number };
+
 export interface 技能定义 {
   名称: string;
   类别: string;
@@ -9,12 +16,22 @@ export interface 技能定义 {
   基础威力?: number;
   硬币威力?: number[];
   硬币类型?: string[];
-  硬币?: { 威力: number; 类型?: string }[];
+  硬币?: { 威力: number; 类型?: string; 命中效果?: 技能效果[] }[];
   攻击等级修正?: number;
   攻击容量?: number;
   效果?: string;
   SP消耗?: number;
+  effects?: 技能效果[];
   所属?: string;
+}
+
+/**
+ * 玩家 / 角色键归一化: 名称为空或字面 `{{user}}` 时统一为「主角」。
+ * 写入端 (开局表单) 与读取端 (战斗 bridge) 必须保持一致。
+ */
+export function 归一化角色键(名称?: string | null): string {
+  const 名 = (名称 ?? '').trim();
+  return 名 && 名 !== '{{user}}' ? 名 : '主角';
 }
 
 export interface 技能库接口 {

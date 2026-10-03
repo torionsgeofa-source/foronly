@@ -64,7 +64,7 @@
                   v-for="名称 in 项.档案.技能"
                   :key="名称"
                   class="skill-chip"
-                  :style="{ borderLeftColor: 技能色(查技能(名称)?.罪孽) }"
+                  :style="{ borderLeftColor: 技能色(查技能(项.键, 名称)?.罪孽) }"
                 >{{ 名称 }}</span>
               </template>
               <span v-else class="empty">无</span>

@@ -59,9 +59,13 @@ export const 通用角色 = '通用';
 
 let 共享技能库: 技能库接口 | null = null;
 
+/** 响应式持有技能库接口: 供 Vue 界面在库晚到时重建战斗单位 */
+export const 技能库引用 = shallowRef<技能库接口 | null>(null);
+
 /** 由前端入口在挂载前绑定技能库全局接口 */
 export function 绑定技能库(api: 技能库接口 | null): void {
   共享技能库 = api;
+  技能库引用.value = api;
 }
 
 export function 取技能库(): 技能库接口 | null {

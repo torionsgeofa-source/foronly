@@ -12,6 +12,21 @@ import 技能库设置界面 from '../../界面/技能库/App.vue';
 const 窗口Id = 'moon-skill-lib-window';
 const 浮标Id = 'moon-skill-lib-toggle';
 
+/** 与三个前端界面一致: 缺失 SVGElement / MathMLElement 时补 shim, 保证 Vue 正常挂载 */
+function ensureDomGlobals(): void {
+  const g = window as unknown as Record<string, unknown>;
+  try {
+    if (typeof g.SVGElement !== 'function') {
+      g.SVGElement = typeof g.Element === 'function' ? class SVGElement extends (g.Element as typeof Element) {} : class SVGElement {};
+    }
+    if (typeof g.MathMLElement !== 'function') {
+      g.MathMLElement = class MathMLElement {};
+    }
+  } catch (e) {
+    console.warn('[技能库界面] DOM 全局检测失败', e);
+  }
+}
+
 /** 取主界面 document: 优先 parent.document, 跨域等异常时退回自身 document */
 function 取主文档(): Document {
   try {
@@ -132,9 +147,6 @@ function 挂载悬浮窗(): void {
   标题.addEventListener('pointerup', 结束拖动);
   标题.addEventListener('pointercancel', 结束拖动);
 
-  const app = createApp(技能库设置界面).use(createPinia());
-  app.mount($内容[0]);
-
   const 切换 = () => $窗.toggle();
 
   // 屏幕角落小浮标: 始终提供, 作为脚本按钮不可用时的兜底
@@ -160,15 +172,37 @@ function 挂载悬浮窗(): void {
     .on('click', 切换)
     .appendTo($主body);
 
+  // 先注册脚本按钮事件, 再挂载 Vue: 即使 Vue 挂载失败, 浮标 / 按钮仍存在、可点
+  let 按钮监听: EventOnReturn | null = null;
   try {
     replaceScriptButtons([{ name: '技能库', visible: true }]);
-    eventOn(getButtonEvent('技能库'), 切换);
+    按钮监听 = eventOn(getButtonEvent('技能库'), 切换);
   } catch (e) {
     console.warn('[技能库界面] 注册脚本按钮失败, 已保留角落浮标', e);
   }
 
+  let app: ReturnType<typeof createApp> | null = null;
+  try {
+    ensureDomGlobals();
+    app = createApp(技能库设置界面).use(createPinia());
+    app.mount($内容[0]);
+    console.info('[技能库界面] Vue 已挂载');
+  } catch (e) {
+    app = null;
+    console.error('[技能库界面] Vue 挂载失败, 已保留角落浮标与脚本按钮', e);
+  }
+
   $(window).on('pagehide', () => {
-    app.unmount();
+    try {
+      按钮监听?.stop();
+    } catch (e) {
+      console.warn('[技能库界面] 注销脚本按钮监听失败', e);
+    }
+    try {
+      app?.unmount();
+    } catch (e) {
+      console.warn('[技能库界面] 卸载 Vue 失败', e);
+    }
     $窗.remove();
     $浮标.remove();
     destroy();

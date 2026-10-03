@@ -14,12 +14,13 @@
     </div>
 
     <div v-if="显示导入" class="import-box">
-      <textarea v-model="导入文本" rows="5" placeholder="粘贴「角色 -> 技能名 -> 技能定义」的 JSON 对象（也兼容扁平「技能名 -> 定义」，将归入「通用」）" />
+      <textarea v-model="导入文本" rows="5" placeholder="粘贴 JSON：支持「角色 -> 技能名 -> 定义」整库 / 单角色、或「技能名 -> 定义」单技能（按 所属 归入角色，缺省「通用」）" />
       <div class="import-actions">
-        <button class="tbtn primary" :disabled="!导入文本.trim()" @click="执行导入">确认导入</button>
+        <button class="tbtn primary" :disabled="!导入文本.trim()" @click="执行导入">确认导入（合并）</button>
         <button class="tbtn" @click="选择文件">从文件导入</button>
         <input ref="文件输入" type="file" accept=".json,application/json" class="hidden-file" @change="读文件" />
       </div>
+      <div class="hint">导入为合并写入：同名技能会被覆盖，未导入的角色 / 技能不会被删除。</div>
     </div>
 
     <div class="lib-body">
@@ -205,6 +206,7 @@ const 角色关键字 = ref('');
 const 关键字 = ref('');
 const 筛选类别 = ref<'' | 技能类别>('');
 const 草稿 = ref<技能定义 | null>(null);
+const 草稿原名称 = ref('');
 const 显示导入 = ref(false);
 const 导入文本 = ref('');
 const 文件输入 = ref<HTMLInputElement | null>(null);
@@ -271,6 +273,7 @@ function 刷新(): void {
 function 选中角色(角色: string): void {
   当前角色.value = 角色;
   草稿.value = null;
+  草稿原名称.value = '';
   刷新技能();
 }
 
@@ -300,7 +303,10 @@ function 删除角色(角色: string): void {
 
 function 选中(名称: string): void {
   const 定义 = 技能库.value?.查(当前角色.value, 名称);
-  if (定义) 草稿.value = 建草稿(定义);
+  if (定义) {
+    草稿.value = 建草稿(定义);
+    草稿原名称.value = 名称;
+  }
 }
 
 function 新建(): void {
@@ -309,6 +315,7 @@ function 新建(): void {
     return;
   }
   草稿.value = { ...建草稿(), 所属: 当前角色.value };
+  草稿原名称.value = '';
 }
 
 function 添加硬币(): void {
@@ -334,9 +341,14 @@ function 保存(): void {
     硬币威力: 是拼点技能.value ? 硬币.map(项 => 项.威力) : undefined,
     硬币类型: 是拼点技能.value ? 硬币.map(项 => 项.类型) : undefined,
   };
+  // 名称被改动时先删旧名, 避免旧名残留
+  if (草稿原名称.value && 草稿原名称.value !== 结果.名称) {
+    技能库.value.删(当前角色.value, 草稿原名称.value);
+  }
   if (技能库.value.查(当前角色.value, 结果.名称)) 技能库.value.改(当前角色.value, 结果.名称, 结果);
   else 技能库.value.增(当前角色.value, 结果.名称, 结果);
   草稿.value = 建草稿(结果);
+  草稿原名称.value = 结果.名称;
   刷新技能();
   toastr.success(`已保存技能「${结果.名称}」到「${当前角色.value}」`, '技能库');
 }
@@ -347,6 +359,7 @@ function 删除(): void {
   if (!confirm(`确定删除技能「${定义.名称}」吗？（内置技能可重置恢复）`)) return;
   技能库.value.删(当前角色.value, 定义.名称);
   草稿.value = null;
+  草稿原名称.value = '';
   刷新技能();
   toastr.info(`已删除技能「${定义.名称}」`, '技能库');
 }
@@ -357,12 +370,14 @@ function 重置库(): void {
   技能库.value.重置();
   当前角色.value = '';
   草稿.value = null;
+  草稿原名称.value = '';
   刷新();
   toastr.info('技能库已重置为内置默认库', '技能库');
 }
 
 function 执行导入(): void {
   if (!技能库.value) return;
+  if (!confirm('导入以「合并」方式写入：同名技能会被覆盖，未导入的角色 / 技能不会被删除。是否继续？')) return;
   try {
     技能库.value.导入(导入文本.value);
     显示导入.value = false;
@@ -391,10 +406,12 @@ function 读文件(事件: Event): void {
 
 function 下载(文本: string, 文件名: string): void {
   const 链接 = document.createElement('a');
-  链接.href = URL.createObjectURL(new Blob([文本], { type: 'application/json' }));
+  const 地址 = URL.createObjectURL(new Blob([文本], { type: 'application/json' }));
+  链接.href = 地址;
   链接.download = 文件名;
   链接.click();
-  URL.revokeObjectURL(链接.href);
+  // 延迟撤销, 避免部分浏览器在下载真正开始前就释放 URL 导致下载失败
+  setTimeout(() => URL.revokeObjectURL(地址), 1000);
   void navigator.clipboard?.writeText(文本).catch(() => undefined);
 }
 
@@ -412,8 +429,10 @@ function 导出文件(角色?: string): void {
 
 function 导出单个技能(): void {
   if (!草稿.value) return;
-  const 文本 = JSON.stringify({ ...草稿.value, 所属: 当前角色.value }, null, 2);
-  下载(文本, `${草稿.value.名称 || '技能'}.json`);
+  const 名称 = 草稿.value.名称 || '技能';
+  // 输出 { [技能名]: 定义 }, 可被单技能导入规则识别
+  const 文本 = JSON.stringify({ [名称]: { ...草稿.value, 所属: 当前角色.value } }, null, 2);
+  下载(文本, `${名称}.json`);
   toastr.success('已导出单个技能（并尝试复制到剪贴板）', '技能库');
 }
 
@@ -447,6 +466,11 @@ onMounted(async () => {
   background: var(--b-bg, #100d10);
   color: var(--b-text, #e8e0e4);
   font-size: 13px;
+}
+
+.skill-lib,
+.skill-lib * {
+  box-sizing: border-box;
 }
 
 .lib-header {

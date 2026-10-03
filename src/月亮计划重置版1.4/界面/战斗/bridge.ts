@@ -8,6 +8,15 @@ import { 战力评级 } from './engine/level';
 type 罪孽对象 = { 暴怒: number; 色欲: number; 怠惰: number; 暴食: number; 忧郁: number; 傲慢: number; 嫉妒: number };
 type 物理抗性对象 = { 斩击: number; 突刺: number; 打击: number };
 
+/**
+ * 玩家 / 角色键归一化: 名称为空或字面 `{{user}}` 时统一为「主角」。
+ * 与开局表单写入端 (界面/开局表单/技能库.ts) 的规则必须完全一致。
+ */
+export function 归一化角色键(名称?: string | null): string {
+  const 名 = (名称 ?? '').trim();
+  return 名 && 名 !== '{{user}}' ? 名 : '主角';
+}
+
 function 罪孽写回(来源: Record<string, number>): 罪孽对象 {
   return {
     暴怒: 来源.暴怒 ?? 0,
@@ -142,7 +151,7 @@ function 应用战斗状态(单位: 战斗单位, 记录: MvuSchema['战斗']['�
 }
 
 export function 玩家单位(data: MvuSchema): 战斗单位 {
-  const 单位 = 档案转单位(data.玩家状态, data.玩家状态.基础信息.名称 || '玩家', '玩家');
+  const 单位 = 档案转单位(data.玩家状态, 归一化角色键(data.玩家状态.基础信息.名称), '玩家');
   单位.是否玩家 = true;
   return 单位;
 }

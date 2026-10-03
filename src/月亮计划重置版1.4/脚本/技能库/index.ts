@@ -399,7 +399,7 @@ function 合并(): 技能库数据 {
   const 结果: 技能库数据 = {};
   const 写入 = (角色: string, 名: string, 定义: 技能定义) => {
     if ((存储.删除[角色] ?? []).includes(名)) return;
-    (结果[角色] ??= {})[名] = { ...定义, 名称: 名, 所属: 角色 };
+    (结果[角色] ??= {})[名] = 清理定义({ ...定义, 名称: 名, 所属: 角色 });
   };
   for (const [角色, 技能表] of Object.entries(默认技能库)) {
     for (const [名, 定义] of Object.entries(技能表)) 写入(角色, 名, 定义);
@@ -414,6 +414,23 @@ function 合并(): 技能库数据 {
 
 function 是内置(角色: string, 名: string): boolean {
   return Object.prototype.hasOwnProperty.call(默认技能库[角色] ?? {}, 名);
+}
+
+const 合法罪孽集 = new Set<string>(['暴怒', '色欲', '怠惰', '暴食', '忧郁', '傲慢', '嫉妒']);
+
+/** 写入前的字段清理: 非法罪孽枚举直接省略字段 (引擎会回退为「暴怒」) */
+function 清理定义(定义: 技能定义): 技能定义 {
+  if (定义.罪孽 && !合法罪孽集.has(定义.罪孽)) delete 定义.罪孽;
+  return 定义;
+}
+
+/** 把一条技能并入覆盖层 (不删除其它角色 / 技能), 并清除同名删除标记 */
+function 合并覆盖(角色: string, 技能名: string, 定义: 技能定义): void {
+  if (!角色 || !技能名) return;
+  (存储.覆盖[角色] ??= {})[技能名] = 清理定义({ ...深拷贝(定义), 名称: 技能名, 所属: 角色 });
+  const 剩余 = (存储.删除[角色] ?? []).filter(名 => 名 !== 技能名);
+  if (剩余.length) 存储.删除[角色] = 剩余;
+  else delete 存储.删除[角色];
 }
 
 /* ------------------------------------------------------------------ *
@@ -436,19 +453,11 @@ export const 技能库API: 技能库接口 = {
     保存();
   },
   增: (角色, 技能名, 定义) => {
-    if (!角色 || !技能名) return;
-    (存储.覆盖[角色] ??= {})[技能名] = { ...深拷贝(定义), 名称: 技能名, 所属: 角色 };
-    const 删除项 = (存储.删除[角色] ?? []).filter(名 => 名 !== 技能名);
-    if (删除项.length) 存储.删除[角色] = 删除项;
-    else delete 存储.删除[角色];
+    合并覆盖(角色, 技能名, 定义);
     保存();
   },
   改: (角色, 技能名, 定义) => {
-    if (!角色 || !技能名) return;
-    (存储.覆盖[角色] ??= {})[技能名] = { ...深拷贝(定义), 名称: 技能名, 所属: 角色 };
-    const 删除项 = (存储.删除[角色] ?? []).filter(名 => 名 !== 技能名);
-    if (删除项.length) 存储.删除[角色] = 删除项;
-    else delete 存储.删除[角色];
+    合并覆盖(角色, 技能名, 定义);
     保存();
   },
   删: (角色, 技能名) => {
@@ -474,13 +483,12 @@ export const 技能库API: 技能库接口 = {
   },
   导入: json => {
     const 数据 = 解析导入(json);
-    存储.覆盖 = 数据;
-    const 删除: Record<string, string[]> = {};
-    for (const [角色, 技能表] of Object.entries(默认技能库)) {
-      const 缺失 = Object.keys(技能表).filter(名 => !(数据[角色]?.[名]));
-      if (缺失.length > 0) 删除[角色] = 缺失;
+    // 增量合并: 按 角色->技能名 逐条并入覆盖层, 不删除未导入的角色 / 技能
+    for (const [角色, 技能表] of Object.entries(数据)) {
+      const 技能名列表 = Object.keys(技能表);
+      if (技能名列表.length === 0) 存储.覆盖[角色] ??= {};
+      for (const 名 of 技能名列表) 合并覆盖(角色, 名, 技能表[名]);
     }
-    存储.删除 = 删除;
     保存();
   },
   导出: 角色 => {
@@ -502,28 +510,58 @@ initializeGlobal('技能库', 技能库API);
   console.info('[技能库] 已共享全局接口, 角色数:', 角色数, '技能数:', 技能数);
 }
 
+/**
+ * 判定一个值是否为「技能定义对象」。
+ * 兼容只有 名称 / 类别 / 所属 等技能字段、但字段不完整的旧数据。
+ */
+function 是导入技能定义(值: unknown): 值 is Record<string, unknown> {
+  if (!值 || typeof 值 !== 'object' || Array.isArray(值)) return false;
+  const 对象 = 值 as Record<string, unknown>;
+  return typeof 对象.类别 === 'string' || typeof 对象.名称 === 'string' || typeof 对象.所属 === 'string';
+}
+
+function 规范化导入定义(名: string, 原始: Record<string, unknown>, 默认角色: string): 技能定义 {
+  const 对象 = 原始 as unknown as Partial<技能定义>;
+  const 结果: 技能定义 = {
+    ...对象,
+    名称: 名,
+    类别: (对象.类别 as 技能类别) ?? '战斗',
+    所属: (对象.所属 as string) ?? 默认角色,
+  };
+  return 清理定义(结果);
+}
+
+/**
+ * 解析导入 JSON, 兼容三种结构:
+ * 1. 整库 `{ 角色: { 技能名: 定义 } }` —— 顶层值是技能表对象;
+ * 2. 单角色 / 多技能 `{ 技能名: 定义 }` —— 顶层值是技能定义对象, 归入各自的 `所属` (缺省「通用」);
+ * 3. 单技能 `{ 技能名: 定义 }` —— 与 2 相同规则, 天然可被识别。
+ */
 function 解析导入(json: string): 技能库数据 {
   const 解析 = JSON.parse(json) as unknown;
   if (!解析 || typeof 解析 !== 'object' || Array.isArray(解析)) {
-    throw Error('技能库 JSON 应为「角色 -> 技能名 -> 技能定义」的对象');
+    throw Error('技能库 JSON 应为「角色 -> 技能名 -> 技能定义」或「技能名 -> 技能定义」的对象');
   }
   const 结果: 技能库数据 = {};
   for (const [键, 值] of Object.entries(解析 as Record<string, unknown>)) {
-    if (是技能定义(值)) {
-      const 对象 = 值 as Partial<技能定义>;
-      (结果[通用角色] ??= {})[键] = { ...对象, 名称: 键, 类别: 对象.类别 ?? '战斗', 所属: 对象.所属 ?? 通用角色 };
+    if (是导入技能定义(值)) {
+      // 顶层值是技能定义: 视为单条技能, 归入其 所属 (缺省「通用」)
+      const 对象 = 值 as Record<string, unknown>;
+      const 角色 = typeof 对象.所属 === 'string' && 对象.所属 ? 对象.所属 : 通用角色;
+      const 名 = typeof 对象.名称 === 'string' && 对象.名称 ? 对象.名称 : 键;
+      (结果[角色] ??= {})[名] = 规范化导入定义(名, 对象, 角色);
       continue;
     }
     if (!值 || typeof 值 !== 'object' || Array.isArray(值)) {
-      throw Error(`角色「${键}」的技能表不是对象`);
+      throw Error(`「${键}」既不是技能定义, 也不是技能表`);
     }
+    // 顶层值是技能表: 角色 -> 技能名 -> 定义
     const 技能表: Record<string, 技能定义> = {};
     for (const [名, 定义] of Object.entries(值 as Record<string, unknown>)) {
-      if (!定义 || typeof 定义 !== 'object' || Array.isArray(定义)) {
-        throw Error(`技能「${键}/${名}」的定义不是对象`);
+      if (!是导入技能定义(定义)) {
+        throw Error(`技能「${键}/${名}」缺少 类别 / 名称 / 所属 等技能字段`);
       }
-      const 对象 = 定义 as Partial<技能定义>;
-      技能表[名] = { ...对象, 名称: 名, 类别: 对象.类别 ?? '战斗', 所属: 对象.所属 ?? 键 };
+      技能表[名] = 规范化导入定义(名, 定义 as Record<string, unknown>, 键);
     }
     结果[键] = 技能表;
   }

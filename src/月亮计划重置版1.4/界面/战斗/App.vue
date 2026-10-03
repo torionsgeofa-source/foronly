@@ -128,6 +128,7 @@
 <script setup lang="ts">
 import { useDataStore } from './store';
 import { 构建全部单位, 写回战斗, 生成回合摘要 } from './bridge';
+import { 技能库引用 } from './engine/units';
 import { 创建战斗状态, 准备回合, 结算当前行动, 推进行动, 结束回合, 当前单位, 存活, 敌对 } from './engine/battle';
 import { 结算罪孽共鸣 } from './engine/status';
 import { 结算经验, 经验奖励 } from './engine/level';
@@ -464,6 +465,13 @@ function 初始化(): void {
     void 自动推进();
   }
 }
+
+// 技能库晚到时重新解析 / 重建单位, 避免整场使用占位技能
+watch(技能库引用, 库 => {
+  if (!库 || 已交接.value) return;
+  console.info('[战斗面板] 技能库已就绪, 重新初始化战斗单位');
+  初始化();
+});
 
 onMounted(() => {
   初始化();
