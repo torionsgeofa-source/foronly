@@ -36,7 +36,11 @@ const 生命描述 = (数值: number, 上限: number): string => {
 };
 
 /** 技能: 角色档案与战斗单位只保存技能名, 定义与规范效果存于「技能库」插件 */
-const 造技能列表 = () => z.array(z.string()).prefault([]);
+const 造技能列表 = () =>
+  z
+    .union([z.array(z.string()), z.record(z.string(), z.unknown())])
+    .transform(v => (Array.isArray(v) ? v : Object.keys((v ?? {}) as object)))
+    .prefault([]);
 
 const 造罪孽抗性 = () =>
   z
