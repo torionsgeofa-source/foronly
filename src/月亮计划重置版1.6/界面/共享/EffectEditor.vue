@@ -43,7 +43,7 @@
         </template>
 
         <template v-else>
-          <input v-model="条件" class="add-input" :list="条件列表Id" placeholder="条件(可选)" title="仅当条件成立时结算本条效果；留空为无条件" />
+          <input v-model="效果条件" class="add-input" :list="条件列表Id" placeholder="条件(可选)" title="仅当条件成立时结算本条效果；留空为无条件" />
         </template>
 
         <button type="button" class="add-btn" @click="添加">添加</button>
@@ -92,7 +92,10 @@ const 展开 = ref(false);
 const 句式 = ref<效果句式>('施加状态（层数）');
 const 目标 = ref<效果目标>(可选目标.value[0] ?? '敌人');
 const 状态 = ref('破裂');
+/** 「条件增伤」句式的必填条件 (默认给一个常用示例) */
 const 条件 = ref('生命低于50%');
+/** 其余效果句式的**可选**触发条件, 默认留空 (不强制带条件) */
+const 效果条件 = ref('');
 const 正负 = ref<'恢复' | '失去'>('恢复');
 const 数量 = ref(1);
 
@@ -114,7 +117,7 @@ function 删除(下标: number): void {
 
 /** 可选条件属性: 非空时注入 条件 (条件增伤自带 条件, 由调用处另行处理) */
 function 可选条件属性(): { 条件?: string } {
-  const 值 = 条件.value.trim();
+  const 值 = 效果条件.value.trim();
   return 值 ? { 条件: 值 } : {};
 }
 
