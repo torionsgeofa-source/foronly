@@ -9,6 +9,17 @@ import { 合法时机, 归一化角色键 } from '../共享/技能常量';
 type 罪孽对象 = { 暴怒: number; 色欲: number; 怠惰: number; 暴食: number; 忧郁: number; 傲慢: number; 嫉妒: number };
 type 物理抗性对象 = { 斩击: number; 突刺: number; 打击: number };
 
+/**
+ * 阵营归一化: 兼容 AI 口语化写法 (敌方 / 敌对 / 敌 / 友方 / 友军 / 我方友军 …),
+ * 无法识别时默认按「敌人」处理, 确保 AI 写「敌方」也进入敌方区。
+ */
+export function 归一化阵营(原始: unknown): 战斗单位['阵营'] {
+  const 文本 = String(原始 ?? '').trim();
+  if (文本 === '玩家' || 文本 === '主角') return '玩家';
+  if (文本 === '盟友' || 文本 === '友方' || 文本 === '友军' || 文本 === '我方友军') return '盟友';
+  return '敌人';
+}
+
 function 罪孽写回(来源: Record<string, number>): 罪孽对象 {
   return {
     暴怒: 来源.暴怒 ?? 0,
@@ -29,9 +40,9 @@ function 物理抗性写回(来源: Record<string, number>): 物理抗性对象 
   };
 }
 
-function 复制状态(状态: Record<string, 状态效果>): Record<string, 状态效果> {
+function 复制状态(状态: Record<string, 状态效果> | undefined): Record<string, 状态效果> {
   const 结果: Record<string, 状态效果> = {};
-  for (const [名称, 值] of Object.entries(状态)) {
+  for (const [名称, 值] of Object.entries(状态 ?? {})) {
     if (值.强度 > 0 || 值.层数 > 0) 结果[名称] = { 强度: 值.强度, 层数: 值.层数 };
   }
   return 结果;
@@ -90,9 +101,10 @@ function 附加装备效果(单位: 战斗单位, 档案: 角色档案): void {
 
 /** 由一份完整角色档案(玩家/角色通用结构)构造战斗单位。 */
 export function 档案转单位(档案: 角色档案, 名称: string, 阵营: 战斗单位['阵营']): 战斗单位 {
+  const 规范阵营 = 归一化阵营(阵营);
   const 单位: 战斗单位 = {
     名称: 名称 || 档案.基础信息.名称 || '角色',
-    阵营,
+    阵营: 规范阵营,
     身份: 档案.基础信息.身份,
     等级: 档案.基础信息.等级,
     生命值: 档案.生命体征.生命值.数值,
@@ -117,7 +129,7 @@ export function 档案转单位(档案: 角色档案, 名称: string, 阵营: �
     恐慌状态: '无',
   };
   if (Object.keys(单位.技能).length === 0) {
-    单位.技能 = 从模板生成单位(查找模板(单位.身份), 单位.名称, 阵营).技能;
+    单位.技能 = 从模板生成单位(查找模板(单位.身份), 单位.名称, 规范阵营).技能;
   }
   // [预留钩子] NPC 无自定义技能时, 可在此调用 按身份推荐技能(单位.身份, 单位.等级)
   // 并按名查技能库补技能 (未来实现; 见 界面/共享/技能常量.ts 的 身份技能模板 / 按身份推荐技能)。
@@ -150,7 +162,7 @@ export function 玩家单位(data: MvuSchema): 战斗单位 {
 }
 
 export function 变量单位(名称: string, 记录: MvuSchema['战斗']['单位'][string], 档案?: 角色档案): 战斗单位 {
-  const 阵营 = (记录.阵营 === '玩家' || 记录.阵营 === '盟友' ? 记录.阵营 : '敌人') as 战斗单位['阵营'];
+  const 阵营 = 归一化阵营(记录.阵营);
   if (档案) {
     const 单位 = 档案转单位(档案, 名称, 阵营);
     应用战斗状态(单位, 记录);

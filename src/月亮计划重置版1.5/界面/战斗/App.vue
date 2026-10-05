@@ -12,6 +12,8 @@
       <button class="head-btn" @click="重开">重开</button>
     </header>
 
+    <div v-if="未检测到敌方" class="battle-hint">未检测到敌方单位：正文 AI 未写入 战斗.单位</div>
+
     <div class="speed-order">
       <span
         v-for="(名称, 下标) in 战斗 ? 战斗.速度顺序 : []"
@@ -127,7 +129,7 @@
 
 <script setup lang="ts">
 import { useDataStore } from './store';
-import { 构建全部单位, 写回战斗, 生成回合摘要 } from './bridge';
+import { 构建全部单位, 写回战斗, 生成回合摘要, 归一化阵营 } from './bridge';
 import { 技能库引用 } from './engine/units';
 import { 创建战斗状态, 准备回合, 结算当前行动, 推进行动, 结束回合, 当前单位, 存活, 敌对 } from './engine/battle';
 import { 结算罪孽共鸣 } from './engine/status';
@@ -167,6 +169,12 @@ let 震动定时: ReturnType<typeof setTimeout> | null = null;
 
 const 我方单位 = computed(() => 战斗.value?.单位.filter(单位 => 单位.阵营 !== '敌人') ?? []);
 const 敌方单位 = computed(() => 战斗.value?.单位.filter(单位 => 单位.阵营 === '敌人') ?? []);
+
+/** 进行中却没有任何敌方记录: 多为正文 AI 只输出占位符而未写 战斗.单位 */
+const 未检测到敌方 = computed(() => {
+  if (data.战斗.进行中 !== true) return false;
+  return !Object.values(data.战斗.单位).some(项 => 归一化阵营(项?.阵营) === '敌人');
+});
 
 const 当前行动单位 = computed(() => (战斗.value ? 当前单位(战斗.value) : undefined));
 const 玩家单位 = computed(() => 战斗.value?.单位.find(单位 => 单位.是否玩家));
@@ -466,6 +474,66 @@ function 初始化(): void {
   }
 }
 
+/** 战斗是否尚未推进 (无快照、首回合、玩家尚未行动且未结束) */
+function 战斗未推进(): boolean {
+  const b = 战斗.value;
+  if (!b || b.结束) return false;
+  if (快照栈.value.length > 0) return false;
+  if (b.回合 > 1) return false;
+  const 玩家 = b.单位.find(单位 => 单位.是否玩家);
+  if (玩家 && 玩家.已行动) return false;
+  return true;
+}
+
+function 数据单位名集(): string[] {
+  return Object.keys(data.战斗.单位).sort();
+}
+
+function 战斗单位名集(): string[] {
+  const b = 战斗.value;
+  if (!b) return [];
+  return b.单位
+    .filter(单位 => !单位.是否玩家)
+    .map(单位 => 单位.名称)
+    .sort();
+}
+
+function 名集相同(左: string[], 右: string[]): boolean {
+  return 左.length === 右.length && 左.every((名, 下标) => 名 === 右[下标]);
+}
+
+/** 已推进的战斗中出现新单位时, 仅追加, 绝不重建, 以免丢失进度 */
+function 追加新单位(): void {
+  const b = 战斗.value;
+  if (!b) return;
+  const 现有 = new Set(b.单位.map(单位 => 单位.名称));
+  const 新增 = 构建全部单位(data).filter(单位 => !现有.has(单位.名称));
+  if (新增.length === 0) return;
+  for (const 单位 of 新增) {
+    b.单位.push(单位);
+    b.速度顺序.push(单位.名称);
+  }
+  b.日志.push(...新增.map(单位 => `${单位.名称} 加入战斗`));
+  同步日志();
+  写回();
+  console.info('[战斗面板] 战斗中追加新单位', 新增.map(单位 => 单位.名称));
+}
+
+// 正文 AI 的 UpdateVariable 常在面板挂载后才写入 战斗.单位; 监听键集合变化并修正
+watch(
+  () => `${data.战斗.进行中 ? 1 : 0}|${Object.keys(data.战斗.单位).sort().join('\u0001')}`,
+  () => {
+    if (data.战斗.进行中 !== true || 已交接.value) return;
+    if (名集相同(数据单位名集(), 战斗单位名集())) return;
+    if (战斗未推进()) {
+      console.info('[战斗面板] 检测到战斗单位更新, 重新初始化战斗');
+      初始化();
+    } else {
+      追加新单位();
+    }
+  },
+);
+
 // 技能库晚到时重新解析 / 重建单位, 避免整场使用占位技能
 watch(技能库引用, 库 => {
   if (!库 || 已交接.value) return;
@@ -513,6 +581,16 @@ onMounted(() => {
   gap: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--b-border);
+}
+
+.battle-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px dashed var(--b-accent-2);
+  background: var(--b-surface);
+  color: var(--b-accent-2);
 }
 
 .title {
