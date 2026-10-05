@@ -12,7 +12,8 @@
       <button class="head-btn" @click="重开">重开</button>
     </header>
 
-    <div v-if="未检测到敌方" class="battle-hint">未检测到敌方单位：正文 AI 未写入 战斗.单位</div>
+    <div v-if="无战斗单位" class="battle-hint">未检测到战斗单位：正文 AI 未在 &lt;UpdateVariable&gt; 里写入 战斗.单位（并设 战斗.进行中 = true）</div>
+    <div v-else-if="有单位无敌人" class="battle-hint">战斗进行中但没有任何「敌人」阵营单位：若这是与友方的切磋 / 对决，请把对手的 阵营 写成「敌人」</div>
 
     <div class="speed-order">
       <span
@@ -170,10 +171,13 @@ let 震动定时: ReturnType<typeof setTimeout> | null = null;
 const 我方单位 = computed(() => 战斗.value?.单位.filter(单位 => 单位.阵营 !== '敌人') ?? []);
 const 敌方单位 = computed(() => 战斗.value?.单位.filter(单位 => 单位.阵营 === '敌人') ?? []);
 
-/** 进行中却没有任何敌方记录: 多为正文 AI 只输出占位符而未写 战斗.单位 */
-const 未检测到敌方 = computed(() => {
+/** 进行中却没有写入任何单位: 多为正文 AI 只输出占位符而未写 战斗.单位 */
+const 无战斗单位 = computed(() => data.战斗.进行中 === true && Object.keys(data.战斗.单位).length === 0);
+/** 进行中且写了单位, 但没有任何「敌人」阵营: 常见于与友方切磋却把对手写成「盟友」 */
+const 有单位无敌人 = computed(() => {
   if (data.战斗.进行中 !== true) return false;
-  return !Object.values(data.战斗.单位).some(项 => 归一化阵营(项?.阵营) === '敌人');
+  const 单位 = Object.values(data.战斗.单位);
+  return 单位.length > 0 && !单位.some(项 => 归一化阵营(项?.阵营) === '敌人');
 });
 
 const 当前行动单位 = computed(() => (战斗.value ? 当前单位(战斗.value) : undefined));

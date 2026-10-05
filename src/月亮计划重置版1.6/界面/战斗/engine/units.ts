@@ -596,7 +596,7 @@ export function 克隆技能(技能: 技能): 技能 {
  * 将任意来源 (AI / 新材料) 生成的新技能标准化为符合模板规范的技能.
  * 非法枚举回退默认、数值夹取到合法范围、补齐硬币与资源字段; 返回修复记录.
  */
-export function 标准化技能(名称: string, 原始: Record<string, unknown>): { 技能: 技能; 修复: string[] } {
+export function 标准化技能(名称: string, 原始: Record<string, unknown>): { 技能: 技能; 定义: 技能定义; 修复: string[] } {
   const 修复: string[] = [];
   const 原始类别 = typeof 原始.类别 === 'string' ? 原始.类别 : '';
 
@@ -657,7 +657,7 @@ export function 标准化技能(名称: string, 原始: Record<string, unknown>)
     效果: typeof 原始.效果 === 'string' ? 原始.效果 : undefined,
     所属: typeof 原始.所属 === 'string' ? 原始.所属 : undefined,
   });
-  return { 技能: 技能定义转技能(定义), 修复 };
+  return { 技能: 技能定义转技能(定义), 定义, 修复 };
 }
 
 type 技能记录 = Record<
@@ -697,9 +697,20 @@ export function 技能记录转技能(记录: string[] | 技能记录, 角色名
       结果[名称] = 库技能;
       continue;
     }
-    const { 技能, 修复 } = 标准化技能(名称, 原始);
+    const { 技能, 定义, 修复 } = 标准化技能(名称, 原始);
+    // 规范化的新技能写入技能库 (角色归属), 供后续读取 / 编辑; 库未就绪时仅本回合内存使用
+    const 已入库 = (() => {
+      if (!共享技能库 || !角色名) return false;
+      try {
+        共享技能库.增(角色名, 名称, 定义);
+        return true;
+      } catch (错误) {
+        console.warn(`[技能库] 技能「${名称}」写入技能库失败`, 错误);
+        return false;
+      }
+    })();
     console.warn(
-      `[技能库] 技能「${名称}」未在技能库中找到, 已用占位技能${修复.length > 0 ? `: ${修复.join('; ')}` : ''}`,
+      `[技能库] 技能「${名称}」未在技能库中找到, 已${已入库 ? '生成并写入技能库' : '用占位技能'}${修复.length > 0 ? `: ${修复.join('; ')}` : ''}`,
     );
     结果[名称] = 技能;
   }

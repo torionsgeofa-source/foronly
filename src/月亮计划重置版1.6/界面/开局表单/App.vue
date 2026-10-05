@@ -134,6 +134,7 @@
       <footer class="card-foot">
         <span v-if="已提交" class="foot-status done">已提交，正在生成…</span>
         <span v-else-if="提交中" class="foot-status">正在提交…</span>
+        <span v-else-if="技能待入库" class="foot-status">技能库初始化中，稍候即可提交（自定义技能将写入技能库）…</span>
         <span v-else-if="首个错误" class="foot-status">{{ 首个错误 }}</span>
         <button class="submit-btn" :disabled="!可提交" @click="提交">
           {{ 提交中 ? '提交中…' : 已提交 ? '已提交' : '确认并开始' }}
@@ -160,7 +161,7 @@ import {
    type 装备槽表单,
 } from './types';
 import { 规范化装备效果, 解析装备效果, 序列化效果 } from '../战斗/engine/效果解析';
-import { 查技能, 写入技能, 共享技能库, 归一化角色键, type 技能定义 } from './技能库';
+import { 查技能, 写入技能, 共享技能库, 技能库就绪, 归一化角色键, type 技能定义 } from './技能库';
 import { 从技能定义, 空技能编辑, 到技能定义 } from '../共享/技能编辑';
 
 const store = useDataStore();
@@ -412,8 +413,10 @@ const 首个错误 = computed(() => {
   return '';
 });
 
+/** 自定义技能需要写入技能库; 库未就绪时禁止提交, 避免仅存名字而丢失定义 */
+const 技能待入库 = computed(() => 表单.技能.length > 0 && !技能库就绪());
 const 可提交 = computed(
-  () => !提交中.value && !已提交.value && 名称错误.value === '' && 等级错误.value === '' && 理智错误.value === '' && !技能有错误.value,
+  () => !提交中.value && !已提交.value && 名称错误.value === '' && 等级错误.value === '' && 理智错误.value === '' && !技能有错误.value && !技能待入库.value,
 );
 
 function 构建技能行(技: 技能输出): string {
