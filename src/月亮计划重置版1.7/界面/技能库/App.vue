@@ -93,6 +93,7 @@
 import SkillPanel from '../共享/SkillPanel.vue';
 import { 从技能定义, 空技能编辑, 到技能定义, type 技能编辑 } from '../共享/技能编辑';
 import { 类别选项, 罪孽颜色, type 技能定义, type 技能库接口, type 技能类别 } from './types';
+import { 取技能库全局 } from '../共享/技能库全局';
 
 const 技能库 = ref<技能库接口 | null>(null);
 const 角色列表 = ref<string[]>([]);
@@ -295,7 +296,8 @@ function 导出单个技能(): void {
 
 onMounted(async () => {
   try {
-    技能库.value = await waitGlobalInitialized<技能库接口>('技能库');
+    技能库.value = await 取技能库全局();
+    if (!技能库.value) throw new Error('技能库全局接口为空');
   } catch (e) {
     console.warn('[技能库] 未就绪，界面功能不可用', e);
     return;

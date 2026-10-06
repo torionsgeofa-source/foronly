@@ -1,12 +1,13 @@
 import { waitUntil } from 'async-wait-until';
 import App from './App.vue';
 import './global.css';
-import { 绑定技能库, type 技能库接口 } from './技能库';
+import { 绑定技能库 } from './技能库';
+import { 取技能库全局 } from '../共享/技能库全局';
 import { 迁移旧技能, type 技能迁移库接口 } from '../共享/技能迁移';
 
 /** 后台绑定技能库: 不阻塞界面挂载; 绑定后响应式变量会驱动技能面板刷新 */
 function 后台绑定技能库(): void {
-  waitGlobalInitialized<技能库接口>('技能库')
+  取技能库全局()
     .then(api => 绑定技能库(api))
     .catch(e => console.warn('[技能库] 初始化失败，已降级（界面照常挂载，仅技能库功能不可用）', e));
 }
@@ -36,9 +37,11 @@ $(() => {
     );
     // 旧存档兼容: 在 schema 解析前把对象式技能并入库并收敛为名字数组
     try {
-      const api = await waitGlobalInitialized<技能库接口>('技能库');
-      const 迁移数 = 迁移旧技能(api as unknown as 技能迁移库接口);
-      if (迁移数 > 0) console.info('[状态栏] 已迁移旧格式技能', 迁移数, '条');
+      const api = await 取技能库全局();
+      if (api) {
+        const 迁移数 = 迁移旧技能(api as unknown as 技能迁移库接口);
+        if (迁移数 > 0) console.info('[状态栏] 已迁移旧格式技能', 迁移数, '条');
+      }
     } catch (e) {
       console.warn('[状态栏] 旧技能迁移跳过（技能库未就绪）', e);
     }

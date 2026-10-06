@@ -216,8 +216,11 @@ export function 变量单位(名称: string, 记录: MvuSchema['战斗']['单位
 }
 
 export function 构建全部单位(data: MvuSchema): 战斗单位[] {
+  const 玩家名称 = 归一化角色键(data.玩家状态.基础信息.名称);
   const 单位: 战斗单位[] = [玩家单位(data)];
   for (const [名称, 记录] of Object.entries(data.战斗.单位)) {
+    // 玩家由「玩家状态」单独构建; 若正文 AI 误把玩家自己又写进 战斗.单位, 跳过以免出现重复单位
+    if (归一化角色键(名称) === 玩家名称) continue;
     // 角色档案键与技能迁移 / 技能库归属统一走 归一化角色键, 避免空 / {{user}} 边界查不到
     const 档案 = data.角色?.[名称] ?? data.角色?.[归一化角色键(名称)];
     单位.push(变量单位(名称, 记录, 档案));
