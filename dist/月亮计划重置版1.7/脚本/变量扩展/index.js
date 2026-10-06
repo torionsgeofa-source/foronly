@@ -1,0 +1,2 @@
+$(()=>{errorCatched(()=>{const e=[['角色'],['交互对象'],['战斗','单位']],t=e=>{if(!e||'object'!=typeof e)return;const t=e;t.extensible=!0,t.recursiveExtensible=!0},o=o=>{const r=o?.schema;if(!r||'object'!=typeof r||'object'!==r.type)return;r.properties;for(const o of e){let e=r;for(const t of o){const o=e?.properties?.[t];if(!o){e=void 0;break}e=o}t(e)}};eventOn('mag_variable_initialized',o),eventOn('mag_variable_update_started',o),console.info('[变量扩展] 已启用: 角色 / 战斗.单位 / 交互对象 允许新增键')})()});
+//# sourceMappingURL=index.js.map
