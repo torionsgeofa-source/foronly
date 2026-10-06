@@ -26,18 +26,11 @@ export function 升级所需经验(等级: number): number {
   return 升级经验表[等级] ?? Infinity;
 }
 
-/** 上帝视角战力评级: 只依据真实等级, 与公开身份/头衔无关。 */
+import { 等级推战力评级 } from '../../共享/身份战力';
+
+/** 上帝视角战力评级: 只依据真实等级, 与公开身份/头衔无关。统一委托 `共享/身份战力`。 */
 export function 战力评级(等级: number): string {
-  if (等级 <= 10) return '九阶';
-  if (等级 <= 20) return '八阶';
-  if (等级 <= 30) return '七阶';
-  if (等级 <= 40) return '六阶';
-  if (等级 <= 50) return '五阶';
-  if (等级 <= 60) return '四阶';
-  if (等级 <= 70) return '三阶';
-  if (等级 <= 80) return '二阶';
-  if (等级 <= 85) return '一阶';
-  return '色彩';
+  return 等级推战力评级(等级);
 }
 
 /** 根据敌人等级粗略折算经验奖励 */

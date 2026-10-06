@@ -161,7 +161,7 @@ import {
    type 装备槽表单,
 } from './types';
 import { 规范化装备效果, 解析装备效果, 序列化效果 } from '../战斗/engine/效果解析';
-import { 查技能, 写入技能, 共享技能库, 技能库就绪, 归一化角色键, type 技能定义 } from './技能库';
+import { 查技能, 写入技能, 共享技能库, 技能库就绪, 绑定技能库, 归一化角色键, type 技能定义, type 技能库接口 } from './技能库';
 import { 从技能定义, 空技能编辑, 到技能定义 } from '../共享/技能编辑';
 
 const store = useDataStore();
@@ -189,6 +189,8 @@ const 技能校验 = z.object({
   攻击等级修正: z.coerce.number().min(-8, '攻击等级修正需在 -8 ~ +8').max(8, '攻击等级修正需在 -8 ~ +8'),
   攻击容量: z.coerce.number().int('攻击容量需为整数').min(1, '攻击容量需 ≥1'),
   SP消耗: z.coerce.number().min(0, 'SP消耗需 ≥0'),
+  基础威力: z.coerce.number(),
+  每回合一次: z.boolean().default(false),
   硬币: z.array(
     z.object({
       威力: z.coerce.number(),
@@ -489,6 +491,14 @@ async function 提交(): Promise<void> {
   }
   提交中.value = true;
   try {
+    // 兜底: 提交瞬间技能库若仍未绑定 (脚本加载时序), 再等一次并绑定, 避免自定义技能只存名字
+    if (!技能库就绪()) {
+      try {
+        绑定技能库(await waitGlobalInitialized<技能库接口>('技能库'));
+      } catch (e) {
+        console.warn('[开局表单] 技能库绑定失败, 自定义技能将只保存名字', e);
+      }
+    }
     const 值 = 结果.data;
     data.玩家状态.基础信息.名称 = 归一化角色键(值.名称);
     data.玩家状态.基础信息.性别 = 值.性别 || '未知';

@@ -1,4 +1,7 @@
-
+/**
+ * 注意: schema.ts 由 MVU 独立加载, 因此此处的 评级表 / 阶层表 / 计算生命上限 必须自包含。
+ * 对外的统一口径 (与生成规则 / 战斗面板一致) 见 `界面/共享/身份战力.ts`, 两者数值必须保持一致。
+ */
 const 评级表 = (等级: number): string => {
   if (等级 <= 10) return '九阶';
   if (等级 <= 20) return '八阶';
@@ -276,8 +279,9 @@ export const Schema = z.object({
                /** 生命层级 (阶层): 与 角色档案.基础信息.阶层 同名同序, 供无档案 NPC 派生生命上限 */
                阶层: z.enum(['普通', '稀有', '史诗', '传说', '神话']).prefault('普通'),
                等级: z.coerce.number().transform(v => _.clamp(v, 1, 90)).prefault(1),
-               /** 0 = 未设置: 战斗面板按「阶层 + 等级」派生满血后处理 */
-               生命值: z.coerce.number().prefault(0),
+               /** 生命值: -1 = 未设置 (战斗面板按满血处理); ≥0 为有效值 (0 = 重伤濒死, 由玩家指令 / 正文 AI 处理) */
+               生命值: z.coerce.number().prefault(-1),
+               /** 生命上限: 0 = 未设置 (由 阶层 + 等级 或 角色档案 派生) */
                生命上限: z.coerce.number().prefault(0),
               护盾: z.coerce.number().transform(v => Math.max(0, v)).prefault(0),
               理智值: z.coerce.number().transform(v => _.clamp(v, -45, 45)).prefault(0),

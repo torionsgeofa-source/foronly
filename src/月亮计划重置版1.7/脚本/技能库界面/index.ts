@@ -218,8 +218,10 @@ function 挂载悬浮窗(): void {
   $(window).on('pagehide', () => {
     try {
       按钮监听?.stop();
+      // 注销脚本按钮, 避免热重载 / 重复挂载时按钮叠加
+      replaceScriptButtons([]);
     } catch (e) {
-      console.warn('[技能库界面] 注销脚本按钮监听失败', e);
+      console.warn('[技能库界面] 注销脚本按钮失败', e);
     }
     try {
       app?.unmount();

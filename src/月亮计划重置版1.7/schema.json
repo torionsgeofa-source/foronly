@@ -855,7 +855,7 @@
                 "type": "number"
               },
               "生命值": {
-                "default": 0,
+                "default": -1,
                 "type": "number"
               },
               "生命上限": {

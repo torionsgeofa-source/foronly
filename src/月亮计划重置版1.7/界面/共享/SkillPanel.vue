@@ -35,7 +35,7 @@
         </label>
         <label class="field">
           <span class="field-label">基础威力</span>
-          <input v-model.number="model.基础威力" type="number" min="0" class="field-input" placeholder="留空则按硬币派生" />
+          <input v-model.number="model.基础威力" type="number" min="0" class="field-input" placeholder="必填，填 0 即为基础威力 0" />
           <span v-if="错误.基础威力" class="field-error">{{ 错误.基础威力 }}</span>
         </label>
         <label class="field">
