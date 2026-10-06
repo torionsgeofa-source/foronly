@@ -30,7 +30,6 @@ $(() => {
         | undefined;
       // 非对象 (如 mvu_zod 的哨兵字符串) 表示不启用 schema 校验, 无需处理
       if (!schema || typeof schema !== 'object' || schema.type !== 'object') return;
-      const 顶层 = schema.properties ?? {};
       for (const 路径 of 映射路径) {
         let 当前: { properties?: Record<string, unknown> } | undefined = schema;
         for (const 段 of 路径) {
