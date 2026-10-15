@@ -273,9 +273,11 @@ export const Schema = z.object({
           z.string().describe('单位名称'),
            z
              .object({
-               阵营: z.string().prefault('敌人'),
-               身份: z.string().prefault('未知'),
-               _战力评级: z.string().prefault('未评级'),
+                阵营: z.string().prefault('敌人'),
+                身份: z.string().prefault('未知'),
+                /** 原创 NPC 技能关键词 (正文 AI 给出): 主题/性格/罪孽/技能名，供技能生成器生成技能；可留空 */
+                技能关键词: z.string().prefault(''),
+                _战力评级: z.string().prefault('未评级'),
                /** 生命层级 (阶层): 与 角色档案.基础信息.阶层 同名同序, 供无档案 NPC 派生生命上限 */
                阶层: z.enum(['普通', '稀有', '史诗', '传说', '神话']).prefault('普通'),
                等级: z.coerce.number().transform(v => _.clamp(v, 1, 90)).prefault(1),

@@ -93,7 +93,7 @@
       <template v-if="收尾">拼点结束 · {{ result.胜者 === '左' ? result.左侧名称 : result.胜者 === '右' ? result.右侧名称 : '无人' }} 占据优势</template>
       <template v-else-if="当前记录?.结果 === '平局'">平局，重掷</template>
       <template v-else-if="当前记录?.摧毁">
-        {{ 当前记录.结果 === '左胜' ? result.右侧名称 : result.左侧名称 }} 的硬币 #{{ 当前记录.摧毁.硬币id }} 被击碎
+        {{ 当前记录.结果 === '左胜' ? result.右侧名称 : result.左侧名称 }} 的硬币 #{{ 当前记录.摧毁.硬币id }}{{ 当前记录.摧毁.类型 === '破碎' ? ' 输过（威力固定 1）' : ' 被击碎' }}
       </template>
       <template v-else-if="当前记录">僵持</template>
     </div>

@@ -46,7 +46,9 @@ function 物理抗性写回(来源: Record<string, number>): 物理抗性对象 
 function 复制状态(状态: Record<string, 状态效果> | undefined): Record<string, 状态效果> {
   const 结果: Record<string, 状态效果> = {};
   for (const [名称, 值] of Object.entries(状态 ?? {})) {
-    if (值.强度 > 0 || 值.层数 > 0) 结果[名称] = { 强度: 值.强度, 层数: 值.层数 };
+    if (值.强度 > 0 || 值.层数 > 0 || 值.剩余回合 !== undefined) {
+      结果[名称] = { 强度: 值.强度, 层数: 值.层数, ...(值.剩余回合 !== undefined ? { 剩余回合: 值.剩余回合 } : {}) };
+    }
   }
   return 结果;
 }
@@ -178,6 +180,7 @@ export function 变量单位(名称: string, 记录: MvuSchema['战斗']['单位
     名称,
     阵营,
     身份: 记录.身份,
+    技能关键词: 记录.技能关键词 ?? '',
     阶层: 记录.阶层 ?? '普通',
     等级: 记录.等级,
     生命值: 记录.生命值,
@@ -244,6 +247,7 @@ export function 写回单位(data: MvuSchema, 单位: 战斗单位): void {
   data.战斗.单位[单位.名称] = {
     阵营: 单位.阵营,
     身份: 单位.身份,
+    技能关键词: 单位.技能关键词 ?? '',
     阶层: 单位.阶层,
     _战力评级: 战力评级(Math.round(单位.等级)),
     等级: Math.round(单位.等级),

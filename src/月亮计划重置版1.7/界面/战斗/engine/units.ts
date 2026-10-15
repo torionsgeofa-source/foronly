@@ -474,7 +474,7 @@ function 已知身份(身份: string): boolean {
  */
 function 用生成技能(单位: 战斗单位, 允许入库 = false): void {
   const 阶层 = (单位.阶层 ?? '普通') as 阶层名;
-  const { 技能 } = 按身份阶层生成技能(单位.身份, 阶层, 单位.等级);
+  const { 技能 } = 按身份阶层生成技能(单位.身份, 阶层, 单位.等级, 单位.技能关键词);
   const 表: Record<string, 技能> = {};
   for (const 定义 of 技能) {
     if (允许入库) 共享技能库?.增(单位.名称, 定义.名称, 定义);

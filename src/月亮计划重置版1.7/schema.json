@@ -835,6 +835,10 @@
                 "default": "未知",
                 "type": "string"
               },
+              "技能关键词": {
+                "default": "",
+                "type": "string"
+              },
               "_战力评级": {
                 "default": "未评级",
                 "type": "string"
