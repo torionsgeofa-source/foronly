@@ -17,6 +17,13 @@
         "当前场景": {
           "default": "未知场景",
           "type": "string"
+        },
+        "已触发事件": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -46,6 +53,14 @@
             },
             "当前称号": {
               "default": "无",
+              "type": "string"
+            },
+            "来历": {
+              "default": "",
+              "type": "string"
+            },
+            "外貌穿着": {
+              "default": "",
               "type": "string"
             },
             "阶层": {
@@ -253,119 +268,29 @@
             }
           ]
         },
-        "穿着装备": {
+        "装备": {
           "default": {},
           "type": "object",
-          "properties": {
-            "上衣": {
-              "default": {},
-              "anyOf": [
-                {
-                  "default": {},
-                  "type": "object",
-                  "properties": {
-                    "名称": {
-                      "default": "",
-                      "type": "string"
-                    },
-                    "效果": {
-                      "default": "",
-                      "type": "string"
-                    }
-                  }
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "下装": {
-              "default": {},
-              "anyOf": [
-                {
-                  "default": {},
-                  "type": "object",
-                  "properties": {
-                    "名称": {
-                      "default": "",
-                      "type": "string"
-                    },
-                    "效果": {
-                      "default": "",
-                      "type": "string"
-                    }
-                  }
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "武器": {
-              "default": {},
-              "anyOf": [
-                {
-                  "default": {},
-                  "type": "object",
-                  "properties": {
-                    "名称": {
-                      "default": "",
-                      "type": "string"
-                    },
-                    "效果": {
-                      "default": "",
-                      "type": "string"
-                    }
-                  }
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "防具": {
-              "default": {},
-              "anyOf": [
-                {
-                  "default": {},
-                  "type": "object",
-                  "properties": {
-                    "名称": {
-                      "default": "",
-                      "type": "string"
-                    },
-                    "效果": {
-                      "default": "",
-                      "type": "string"
-                    }
-                  }
-                },
-                {
-                  "type": "string"
-                }
-              ]
-            },
-            "物品": {
-              "default": {},
-              "anyOf": [
-                {
-                  "default": {},
-                  "type": "object",
-                  "properties": {
-                    "名称": {
-                      "default": "",
-                      "type": "string"
-                    },
-                    "效果": {
-                      "default": "",
-                      "type": "string"
-                    }
-                  }
-                },
-                {
-                  "type": "string"
-                }
-              ]
+          "propertyNames": {
+            "type": "string",
+            "description": "装备名称"
+          },
+          "additionalProperties": {
+            "default": {},
+            "type": "object",
+            "properties": {
+              "叙事效果": {
+                "default": "",
+                "type": "string"
+              },
+              "战斗效果": {
+                "default": "",
+                "type": "string"
+              },
+              "相关科技": {
+                "default": "无",
+                "type": "string"
+              }
             }
           }
         },
@@ -432,6 +357,14 @@
               },
               "当前称号": {
                 "default": "无",
+                "type": "string"
+              },
+              "来历": {
+                "default": "",
+                "type": "string"
+              },
+              "外貌穿着": {
+                "default": "",
                 "type": "string"
               },
               "阶层": {
@@ -639,119 +572,29 @@
               }
             ]
           },
-          "穿着装备": {
+          "装备": {
             "default": {},
             "type": "object",
-            "properties": {
-              "上衣": {
-                "default": {},
-                "anyOf": [
-                  {
-                    "default": {},
-                    "type": "object",
-                    "properties": {
-                      "名称": {
-                        "default": "",
-                        "type": "string"
-                      },
-                      "效果": {
-                        "default": "",
-                        "type": "string"
-                      }
-                    }
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
-              },
-              "下装": {
-                "default": {},
-                "anyOf": [
-                  {
-                    "default": {},
-                    "type": "object",
-                    "properties": {
-                      "名称": {
-                        "default": "",
-                        "type": "string"
-                      },
-                      "效果": {
-                        "default": "",
-                        "type": "string"
-                      }
-                    }
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
-              },
-              "武器": {
-                "default": {},
-                "anyOf": [
-                  {
-                    "default": {},
-                    "type": "object",
-                    "properties": {
-                      "名称": {
-                        "default": "",
-                        "type": "string"
-                      },
-                      "效果": {
-                        "default": "",
-                        "type": "string"
-                      }
-                    }
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
-              },
-              "防具": {
-                "default": {},
-                "anyOf": [
-                  {
-                    "default": {},
-                    "type": "object",
-                    "properties": {
-                      "名称": {
-                        "default": "",
-                        "type": "string"
-                      },
-                      "效果": {
-                        "default": "",
-                        "type": "string"
-                      }
-                    }
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
-              },
-              "物品": {
-                "default": {},
-                "anyOf": [
-                  {
-                    "default": {},
-                    "type": "object",
-                    "properties": {
-                      "名称": {
-                        "default": "",
-                        "type": "string"
-                      },
-                      "效果": {
-                        "default": "",
-                        "type": "string"
-                      }
-                    }
-                  },
-                  {
-                    "type": "string"
-                  }
-                ]
+            "propertyNames": {
+              "type": "string",
+              "description": "装备名称"
+            },
+            "additionalProperties": {
+              "default": {},
+              "type": "object",
+              "properties": {
+                "叙事效果": {
+                  "default": "",
+                  "type": "string"
+                },
+                "战斗效果": {
+                  "default": "",
+                  "type": "string"
+                },
+                "相关科技": {
+                  "default": "无",
+                  "type": "string"
+                }
               }
             }
           },

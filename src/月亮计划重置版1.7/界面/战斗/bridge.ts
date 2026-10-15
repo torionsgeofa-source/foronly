@@ -79,24 +79,17 @@ function 附加自定义被动支援(单位: 战斗单位): void {
   }
 }
 
-/** 读取单个装备槽的效果文本 (兼容旧字符串写法) */
-function 装备槽效果文本(槽: unknown): string {
-  if (typeof 槽 === 'string') return '';
-  if (槽 && typeof 槽 === 'object' && '效果' in 槽) return String((槽 as { 效果?: unknown }).效果 ?? '');
-  return '';
-}
-
 /**
- * 将装备效果中的状态类 / 护盾类效果作为「战斗开始时」的持久被动应用到单位。
+ * 将各装备「战斗效果」中的状态类 / 护盾类效果作为「战斗开始时」的持久被动应用到单位。
  * 生命加成+N 已由 schema 并入生命上限, 引擎不重复处理。
  */
 function 附加装备效果(单位: 战斗单位, 档案: 角色档案): void {
   const 效果: 技能效果[] = [];
-  for (const 槽 of Object.values(档案.穿着装备 ?? {})) {
-    const 文本 = 装备槽效果文本(槽);
+  for (const 项 of Object.values(档案.装备 ?? {})) {
+    const 文本 = 项?.战斗效果 ?? '';
     if (!文本) continue;
-    for (const 项 of 解析装备效果(文本).效果) {
-      if (项.type !== '生命加成') 效果.push(项);
+    for (const 解析项 of 解析装备效果(文本).效果) {
+      if (解析项.type !== '生命加成') 效果.push(解析项);
     }
   }
   if (效果.length === 0) return;

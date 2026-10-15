@@ -97,37 +97,27 @@ const 造状态效果表 = () =>
     )
     .prefault({});
 
-/** 单个装备槽：名称 + 效果文本 */
-const 造装备槽 = () =>
+/** 装备: 以「装备名称」为键; 叙事效果仅作用于剧情, 战斗效果为规范化的战斗内效果, 相关科技为所用科技/奇点(普通装备写「无」) */
+const 造装备 = () =>
   z
-    .object({
-      名称: z.string().prefault(''),
-      效果: z.string().prefault(''),
-    })
+    .record(
+      z.string().describe('装备名称'),
+      z
+        .object({
+          叙事效果: z.string().prefault(''),
+          战斗效果: z.string().prefault(''),
+          相关科技: z.string().prefault('无'),
+        })
+        .prefault({}),
+    )
+    .transform(data => _.pickBy(data, (_值, 名) => String(名 ?? '').trim() !== ''))
     .prefault({});
 
-/** 装备槽兼容旧字符串写法（视作 { 名称: 字符串, 效果: '' }） */
-const 造装备槽兼容 = () =>
-  z
-    .union([造装备槽(), z.string().transform(v => ({ 名称: v, 效果: '' }))])
-    .prefault({});
-
-const 造穿着装备 = () =>
-  z
-    .object({
-      上衣: 造装备槽兼容(),
-      下装: 造装备槽兼容(),
-      武器: 造装备槽兼容(),
-      防具: 造装备槽兼容(),
-      物品: 造装备槽兼容(),
-    })
-    .prefault({});
-
-/** 装备效果中 生命加成+N 的求和（兼容 +N生命值 / 生命值+N 写法），作为最大生命加成 */
-const 求和装备生命加成 = (装备: Record<string, { 效果?: string } | string> | undefined): number => {
+/** 装备「战斗效果」中 生命加成+N 的求和（兼容 +N生命值 / 生命值+N 写法），作为最大生命加成 */
+const 求和装备生命加成 = (装备: Record<string, { 战斗效果?: string }> | undefined): number => {
   let 总和 = 0;
-  for (const 槽 of Object.values(装备 ?? {})) {
-    const 文本 = typeof 槽 === 'string' ? '' : (槽?.效果 ?? '');
+  for (const 项 of Object.values(装备 ?? {})) {
+    const 文本 = 项?.战斗效果 ?? '';
     if (!文本) continue;
     for (const 匹配 of 文本.matchAll(/生命加成\+(\d+)/g)) 总和 += Number(匹配[1]);
     for (const 匹配 of 文本.matchAll(/\+(\d+)点?生命值/g)) 总和 += Number(匹配[1]);
@@ -165,6 +155,8 @@ const 造角色档案 = (名称默认: string) =>
           种族: z.string().prefault('人类'),
           身份: z.string().prefault('无'),
           当前称号: z.string().prefault('无'),
+          来历: z.string().prefault(''),
+          外貌穿着: z.string().prefault(''),
           阶层: z.enum(['普通', '稀有', '史诗', '传说', '神话']).prefault('普通'),
           _战力评级: z.string().prefault('未评级'),
           等级: z.coerce.number().transform(v => _.clamp(v, 1, 90)).prefault(1),
@@ -223,12 +215,12 @@ const 造角色档案 = (名称默认: string) =>
       物理抗性: 造物理抗性(),
       状态效果: 造状态效果表(),
       技能: 造技能列表(),
-      穿着装备: 造穿着装备(),
+      装备: 造装备(),
       背包: 造背包(),
     })
     .transform(data => {
       const 等级 = data.基础信息.等级;
-      const 生命加成 = 求和装备生命加成(data.穿着装备 as Record<string, { 效果?: string } | string>);
+      const 生命加成 = 求和装备生命加成(data.装备 as Record<string, { 战斗效果?: string }>);
       const 生命上限 = 计算生命上限(data.基础信息.阶层, 等级, 生命加成);
       const 生命数值 = data.生命体征.生命值.数值 < 0 ? 生命上限 : _.clamp(data.生命体征.生命值.数值, 0, 生命上限);
       return {
@@ -254,6 +246,7 @@ export const Schema = z.object({
       当前时间: z.string().prefault('都市历 XXX年XX月XX日 XX:XX'),
       当前地点: z.string().prefault('某个巢/某个后巷_具体地点'),
       当前场景: z.string().prefault('未知场景'),
+      已触发事件: z.array(z.string()).prefault([]),
     })
     .prefault({}),
 

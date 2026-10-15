@@ -30,7 +30,7 @@
 
     <details class="section" :open="展开">
       <summary class="section-title">着装装备</summary>
-      <EquipmentPanel :装备="data.玩家状态.穿着装备" />
+      <EquipmentPanel :装备="data.玩家状态.装备" />
     </details>
 
     <details class="section" :open="展开">

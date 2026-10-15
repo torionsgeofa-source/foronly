@@ -1,9 +1,14 @@
 import type { 技能编辑 } from '../共享/技能编辑';
 
-export interface 装备槽表单 {
+export interface 装备编辑 {
   名称: string;
-  效果: string;
+  叙事效果: string;
+  战斗效果: string;
+  相关科技: string;
 }
+
+/** 开局表单的装备卡片: 额外携带内部唯一 id `_id` 供 v-for 使用 */
+export type 装备表单 = 装备编辑 & { _id: number };
 
 /**
  * 开局表单的技能卡片: 与技能库共用同一编辑模型 `技能编辑`,

@@ -17,7 +17,7 @@
         <div class="guide-body">
           <p>这是游戏开始前的角色初始化界面。你在此填写的内容会作为玩家角色的初始设定写入变量，并作为你的发言发送给 AI。</p>
           <p>「技能设计」可自由添加或删除招式，数量不限；「开场情境」用于描述你期望的开场，会直接交给 AI 作为开局引导。</p>
-          <p>装备效果中「+N生命值 / 生命值+N」会被规范化为「生命加成+N」，表示最大生命加成；治疗请写「恢复N点生命」，护盾请写「获得N点护盾」。</p>
+          <p>「装备」可自由添加；每件装备分「战斗效果（规范效果，战斗中触发）」与「叙事效果（仅剧情）」，其中「+N生命值」会规范成「生命加成+N」。服装、衣服若你未特别声明，视为外貌穿着、不计入装备。</p>
           <p>提交后本表单将被锁定，后续成长请在游戏中进行。</p>
         </div>
       </details>
@@ -30,6 +30,8 @@
           <FormField v-model="表单.种族" label="种族" placeholder="人类" :options="种族建议" />
           <FormField v-model="表单.身份" label="身份" placeholder="无" :options="身份建议" />
           <FormField v-model="表单.当前称号" label="当前称号" placeholder="无" />
+          <FormField v-model="表单.来历" class="span-2" label="角色来历" type="textarea" :rows="3" placeholder="你从何而来、有过什么经历……（可留空）" />
+          <FormField v-model="表单.外貌穿着" class="span-2" label="外貌穿着" type="textarea" :rows="3" placeholder="外貌与日常穿着；服装本身不算装备，除非特别声明（可留空）" />
           <div class="field level-field">
             <span class="field-label">等级（1-90）</span>
             <div class="level-control">
@@ -55,11 +57,22 @@
       </section>
 
       <section class="group">
-        <h2 class="group-title">着装装备</h2>
-        <p class="group-hint">每槽填写「名称 + 效果」。效果支持「施加N层状态 / 恢复N点生命 / 获得N点护盾 / 生命加成+N」，多条用 ； 分隔。</p>
-        <div class="equip-list">
-          <EquipCard v-for="槽 in 装备槽定义" :key="槽.键" v-model="表单.装备[槽.键]" :标签="槽.标签" />
+        <div class="group-head">
+          <h2 class="group-title">装备</h2>
+          <span class="group-count">{{ 表单.装备.length }} 件</span>
         </div>
+        <p class="group-hint">自由添加装备。每件含「装备名称 / 相关科技 / 战斗效果（规范效果）/ 叙事效果（仅剧情）」。服装、衣服若未特别声明，视为外貌穿着，不算装备。</p>
+        <div v-if="表单.装备.length" class="skill-list">
+          <EquipCard
+            v-for="(装, 下标) in 表单.装备"
+            :key="装._id"
+            v-model="表单.装备[下标]"
+            :序号="下标 + 1"
+            @删除="删除装备(下标)"
+          />
+        </div>
+        <div v-else class="skill-empty">尚无装备，可留空直接开始。</div>
+        <button type="button" class="add-skill-btn" @click="添加装备">＋ 添加装备</button>
       </section>
 
       <section class="group">
@@ -158,7 +171,7 @@ import {
   罪孽颜色,
   计算生命上限,
   type 技能表单,
-   type 装备槽表单,
+  type 装备表单,
 } from './types';
 import { 规范化装备效果, 解析装备效果, 序列化效果 } from '../战斗/engine/效果解析';
 import { 查技能, 写入技能, 共享技能库, 技能库就绪, 绑定技能库, 归一化角色键, type 技能定义 } from './技能库';
@@ -167,16 +180,6 @@ import { 从技能定义, 空技能编辑, 到技能定义 } from '../共享/技
 
 const store = useDataStore();
 const data = store.data;
-
-const 装备槽定义 = [
-  { 键: '上衣', 标签: '上衣' },
-  { 键: '下装', 标签: '下装' },
-  { 键: '武器', 标签: '武器' },
-  { 键: '防具', 标签: '防具' },
-  { 键: '物品', 标签: '随身物品' },
-] as const;
-
-type 装备槽键 = (typeof 装备槽定义)[number]['键'];
 
 const 技能校验 = z.object({
   名称: z.string().trim().min(1, '请填写技能名称').max(40, '技能名称过长'),
@@ -202,9 +205,11 @@ const 技能校验 = z.object({
   效果: z.array(z.any()),
 });
 
-const 装备槽校验 = z.object({
+const 装备校验 = z.object({
   名称: z.string().trim(),
-  效果: z.string().trim(),
+  叙事效果: z.string().trim(),
+  战斗效果: z.string().trim(),
+  相关科技: z.string().trim(),
 });
 
 const 表单校验 = z.object({
@@ -213,9 +218,11 @@ const 表单校验 = z.object({
   种族: z.string().trim(),
   身份: z.string().trim(),
   当前称号: z.string().trim(),
+  来历: z.string().trim(),
+  外貌穿着: z.string().trim(),
   等级: z.coerce.number().int('等级需为整数').min(1, '等级需在 1-90 之间').max(90, '等级需在 1-90 之间'),
   阶层: z.enum(['普通', '稀有', '史诗', '传说', '神话']),
-  装备: z.record(z.string(), 装备槽校验),
+  装备: z.array(装备校验),
   罪孽抗性: z.record(z.string(), z.coerce.number()),
   物理抗性: z.record(z.string(), z.coerce.number()),
   混乱阈值: z.coerce.number().min(0, '混乱阈值需 ≥0'),
@@ -244,11 +251,13 @@ interface 表单数据 {
   名称: string;
   性别: string;
   种族: string;
-  身份: string;
-  当前称号: string;
-  等级: number;
-  阶层: string;
-  装备: Record<装备槽键, 装备槽表单>;
+ 身份: string;
+ 当前称号: string;
+ 来历: string;
+ 外貌穿着: string;
+ 等级: number;
+ 阶层: string;
+ 装备: 装备表单[];
   罪孽抗性: Record<string, string>;
   物理抗性: Record<string, string>;
   混乱阈值: string;
@@ -291,16 +300,20 @@ function 载入技能(): 技能表单[] {
   return 名称列表.map(名 => 生成技能表单(名, 查技能(主角名.value, 名)));
 }
 
-function 读装备槽(值: unknown): 装备槽表单 {
-  if (typeof 值 === 'string') return { 名称: 值, 效果: '' };
-  const 对象 = (值 ?? {}) as { 名称?: unknown; 效果?: unknown };
-  return { 名称: String(对象.名称 ?? ''), 效果: String(对象.效果 ?? '') };
+let 装备序号 = 0;
+
+function 生成装备表单(名称: string, 值?: { 叙事效果?: unknown; 战斗效果?: unknown; 相关科技?: unknown }): 装备表单 {
+  return {
+    名称,
+    叙事效果: String(值?.叙事效果 ?? ''),
+    战斗效果: String(值?.战斗效果 ?? ''),
+    相关科技: String(值?.相关科技 ?? '无') || '无',
+    _id: ++装备序号,
+  };
 }
 
-function 载入装备(): Record<装备槽键, 装备槽表单> {
-  const 结果 = {} as Record<装备槽键, 装备槽表单>;
-  for (const { 键 } of 装备槽定义) 结果[键] = 读装备槽(data.玩家状态.穿着装备[键]);
-  return 结果;
+function 载入装备(): 装备表单[] {
+  return Object.entries(data.玩家状态.装备 ?? {}).map(([名称, 值]) => 生成装备表单(名称, 值 as Record<string, unknown>));
 }
 
 const 表单 = reactive<表单数据>({
@@ -309,6 +322,8 @@ const 表单 = reactive<表单数据>({
   种族: data.玩家状态.基础信息.种族,
   身份: data.玩家状态.基础信息.身份,
   当前称号: data.玩家状态.基础信息.当前称号,
+  来历: data.玩家状态.基础信息.来历 ?? '',
+  外貌穿着: data.玩家状态.基础信息.外貌穿着 ?? '',
   等级: data.玩家状态.基础信息.等级,
   阶层: 阶层选项.includes(data.玩家状态.基础信息.阶层) ? data.玩家状态.基础信息.阶层 : '普通',
   装备: 载入装备(),
@@ -342,8 +357,8 @@ watch(共享技能库, 库 => {
 });
 
 const 装备生命加成 = computed(() =>
-  装备槽定义.reduce((总和, { 键 }) => {
-    const 解析 = 解析装备效果(表单.装备[键].效果);
+  表单.装备.reduce((总和, 装) => {
+    const 解析 = 解析装备效果(装.战斗效果);
     return 总和 + 解析.效果.reduce((和, 项) => (项.type === '生命加成' ? 和 + 项.数值 : 和), 0);
   }, 0),
 );
@@ -365,6 +380,14 @@ function 添加技能(): void {
 
 function 删除技能(下标: number): void {
   表单.技能.splice(下标, 1);
+}
+
+function 添加装备(): void {
+  表单.装备.push(生成装备表单(''));
+}
+
+function 删除装备(下标: number): void {
+  表单.装备.splice(下标, 1);
 }
 
 function 字段错误(键: '名称' | '等级'): string {
@@ -439,10 +462,6 @@ function 构建技能行(技: 技能输出): string {
   return `- ${技.名称}：罪孽「${技.罪孽 || '无'}」，攻击类型「${技.攻击类型 || '打击'}」，类别「${技.类别 || '战斗'}」${守备}${触发}，硬币 [${硬币}]，攻击等级修正 ${技.攻击等级修正 >= 0 ? '+' : ''}${技.攻击等级修正}，攻击容量 ${技.攻击容量}，SP消耗 ${技.SP消耗}，效果：${效果 || '无'}${描述}`;
 }
 
-function 装备效果文本(键: 装备槽键): string {
-  return 规范化装备效果(表单.装备[键].效果);
-}
-
 function 构建描述(值: z.output<typeof 表单校验>): string {
   const 行 = [
     '【玩家角色初始设定】',
@@ -451,16 +470,21 @@ function 构建描述(值: z.output<typeof 表单校验>): string {
     `种族：${值.种族 || '人类'}`,
     `身份：${值.身份 || '无'}`,
     `当前称号：${值.当前称号 || '无'}`,
+    `来历：${值.来历 || '无'}`,
+    `外貌穿着：${值.外貌穿着 || '无'}`,
     `阶层：${值.阶层}`,
     `等级：${值.等级}`,
     `生命上限：${当前生命上限.value}`,
     '',
-    '【着装装备】',
-    `上衣：${值.装备.上衣?.名称 || '无'}（效果：${装备效果文本('上衣') || '无'}）`,
-    `下装：${值.装备.下装?.名称 || '无'}（效果：${装备效果文本('下装') || '无'}）`,
-    `武器：${值.装备.武器?.名称 || '无'}（效果：${装备效果文本('武器') || '无'}）`,
-    `防具：${值.装备.防具?.名称 || '无'}（效果：${装备效果文本('防具') || '无'}）`,
-    `随身物品：${值.装备.物品?.名称 || '无'}（效果：${装备效果文本('物品') || '无'}）`,
+    '【装备】',
+    值.装备.length
+      ? 值.装备
+          .map(
+            装 =>
+              `- ${装.名称 || '未命名'}${装.相关科技 && 装.相关科技 !== '无' ? `（科技：${装.相关科技}）` : ''}：战斗效果「${规范化装备效果(装.战斗效果) || '无'}」；叙事效果「${装.叙事效果 || '无'}」`,
+          )
+          .join('\n')
+      : '无',
     '',
     '【主角战斗数据】',
     `罪孽抗性：${罪孽列表.map(名 => `${名} ${值.罪孽抗性[名] ?? 1}`).join('，')}`,
@@ -509,13 +533,16 @@ async function 提交(): Promise<void> {
     data.玩家状态.基础信息.阶层 = 值.阶层;
     data.玩家状态.基础信息.等级 = 值.等级;
 
-    const 槽 = (键: 装备槽键) => 值.装备[键] ?? { 名称: '', 效果: '' };
-    const 建槽 = (键: 装备槽键) => ({ 名称: 槽(键).名称 || '无', 效果: 规范化装备效果(槽(键).效果) });
-    data.玩家状态.穿着装备.上衣 = 建槽('上衣');
-    data.玩家状态.穿着装备.下装 = 建槽('下装');
-    data.玩家状态.穿着装备.武器 = 建槽('武器');
-    data.玩家状态.穿着装备.防具 = 建槽('防具');
-    data.玩家状态.穿着装备.物品 = 建槽('物品');
+    data.玩家状态.基础信息.来历 = 值.来历 || '';
+    data.玩家状态.基础信息.外貌穿着 = 值.外貌穿着 || '';
+    data.玩家状态.装备 = Object.fromEntries(
+      值.装备
+        .filter(装 => 装.名称.trim())
+        .map(装 => [
+          装.名称.trim(),
+          { 叙事效果: 装.叙事效果 || '', 战斗效果: 规范化装备效果(装.战斗效果), 相关科技: 装.相关科技 || '无' },
+        ]),
+    ) as typeof data.玩家状态.装备;
 
     data.玩家状态.罪孽抗性.暴怒 = Number(值.罪孽抗性.暴怒);
     data.玩家状态.罪孽抗性.色欲 = Number(值.罪孽抗性.色欲);

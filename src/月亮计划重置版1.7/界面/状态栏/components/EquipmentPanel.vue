@@ -1,49 +1,55 @@
 <template>
   <div class="equipment">
+    <div v-if="条目.length === 0" class="equip-empty">无</div>
     <div v-for="项 in 条目" :key="项.名称" class="equip-item">
-      <span class="equip-label">{{ 项.名称 }}</span>
-      <span class="equip-value">{{ 项.槽.名称 || '无' }}</span>
-      <span v-if="项.槽.效果" class="equip-effect">{{ 项.槽.效果 }}</span>
+      <div class="equip-head">
+        <span class="equip-name">{{ 项.名称 }}</span>
+        <span v-if="项.相关科技 && 项.相关科技 !== '无'" class="equip-tech">{{ 项.相关科技 }}</span>
+      </div>
+      <p v-if="项.战斗效果" class="equip-line"><span class="k">战斗</span>{{ 项.战斗效果 }}</p>
+      <p v-if="项.叙事效果" class="equip-line"><span class="k">叙事</span>{{ 项.叙事效果 }}</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { 穿着装备 } from '../types';
+import type { 装备组 } from '../types';
 
-const props = defineProps<{ 装备: 穿着装备 }>();
+const props = defineProps<{ 装备: 装备组 }>();
 
-interface 装备槽显示 {
+interface 装备项显示 {
   名称: string;
-  效果: string;
+  叙事效果: string;
+  战斗效果: string;
+  相关科技: string;
 }
 
-function 读槽(值: unknown): 装备槽显示 {
-  if (typeof 值 === 'string') return { 名称: 值, 效果: '' };
-  const 对象 = (值 ?? {}) as { 名称?: unknown; 效果?: unknown };
-  return { 名称: String(对象.名称 ?? ''), 效果: String(对象.效果 ?? '') };
-}
-
-const 条目 = computed(() => [
-  { 名称: '上衣', 槽: 读槽(props.装备.上衣) },
-  { 名称: '下装', 槽: 读槽(props.装备.下装) },
-  { 名称: '武器', 槽: 读槽(props.装备.武器) },
-  { 名称: '防具', 槽: 读槽(props.装备.防具) },
-  { 名称: '物品', 槽: 读槽(props.装备.物品) },
-]);
+const 条目 = computed<装备项显示[]>(() =>
+  Object.entries(props.装备 ?? {}).map(([名称, 值]) => ({
+    名称,
+    叙事效果: String((值 as { 叙事效果?: unknown })?.叙事效果 ?? ''),
+    战斗效果: String((值 as { 战斗效果?: unknown })?.战斗效果 ?? ''),
+    相关科技: String((值 as { 相关科技?: unknown })?.相关科技 ?? '无'),
+  })),
+);
 </script>
 
 <style scoped>
 .equipment {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 6px;
+}
+
+.equip-empty {
+  font-size: 11px;
+  color: var(--b-muted);
 }
 
 .equip-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   padding: 6px 9px;
   border: 1px solid var(--b-border);
   border-left: 3px solid var(--b-accent-2);
@@ -51,22 +57,38 @@ const 条目 = computed(() => [
   background: rgba(0, 0, 0, 0.2);
 }
 
-.equip-label {
-  font-size: 10px;
-  color: var(--b-muted);
+.equip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
-.equip-value {
+.equip-name {
   font-size: 12px;
+  font-weight: 700;
   color: var(--b-text);
-  font-weight: 600;
+}
+
+.equip-tech {
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid var(--b-accent-2);
+  color: var(--b-accent-2);
+}
+
+.equip-line {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--b-muted);
   word-break: break-word;
 }
 
-.equip-effect {
-  font-size: 10px;
-  color: var(--b-muted);
-  line-height: 1.4;
-  word-break: break-word;
+.equip-line .k {
+  display: inline-block;
+  margin-right: 4px;
+  color: var(--b-text);
+  opacity: 0.7;
 }
 </style>

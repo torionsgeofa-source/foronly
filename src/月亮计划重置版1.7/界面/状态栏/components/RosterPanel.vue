@@ -77,8 +77,8 @@
           </div>
 
           <div class="sub-block">
-            <div class="sub-title">穿着装备</div>
-            <EquipmentPanel :装备="项.档案.穿着装备" />
+            <div class="sub-title">装备</div>
+            <EquipmentPanel :装备="项.档案.装备" />
           </div>
         </div>
       </details>
